@@ -22,6 +22,7 @@ The repository is organized into subdirectories representing different stages of
 * **`variant_calling_pipelines/deepvariant/`**: Implementation of the mapping-based pipeline.
 * **`variant_calling_pipelines/assembly/`**: Workflows for assembly-based variant detection. 
 * **`variant_calling_pipelines/pangenomes/`**: Scripts for constructing pangenome graphs with Centrolign and extracting variants from pangenome matrices.
+* * **`parsing_scripts/`**: A collection of utilities designed to transform raw alignment outputs into standard formats.
 * **`validation/`**: Scripts for cross-method consensus validation and automated validation scripts.
 * **`plots/`**: Utility scripts for generating quality control plots and other visualizations.
 
