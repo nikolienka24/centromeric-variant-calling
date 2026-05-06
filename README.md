@@ -5,24 +5,24 @@ This repository contains computational pipelines and custom tools designed for t
 ## Project Overview
 Centromeres are essential for cell division but remain one of the most difficult 
 regions of the human genome to analyze due to their highly repetitive alpha-satellite 
-DNA structure. This project contains tools for systematical evaluation of three primary 
+DNA structure. This project contains pipelines and tools for systematical evaluation of three primary 
 approaches for variant calling in these complex regions:
 
 1.  **Mapping-based approach**: Utilizing Minimap2 and the DeepVariant deep-learning framework.
-2.  **Assembly-based approach**: Utilizing EMBOSS Stretcher, Centrolign (pairwise mode), and the Minimap2 + Paftools.js workflow.
-3.  **Pangenome-based approach**: Utilizing Centrolign in pangenome mode to construct graphs from multiple sequences.
+2.  **Assembly-based approach**: Utilizing EMBOSS Stretcher, Centrolign (pairwise mode), and the Minimap2 + Paftools.js workflows.
+3.  **Pangenome-based approach**: Utilizing Centrolign in pangenome mode.
 
 ---
 
 ## Directory Structure
 The repository is organized into subdirectories representing different stages of the analytical workflow. Each subdirectory contains its own detailed README with script descriptions.
 
-* **`simulation/`**: Contains custom Python scripts to programmatically introduce variants (SNPs, substitutions, indels) into genome assemblies to create ground-truth data.
-* **`haplotype_assignment/`**: Tools for identifying inherited parental haplotypes by aligning flanking regions or whole centromeric sequences.
-* **`deepvariant/`**: Implementation of the mapping-based pipeline, including Minimap2 alignment and DeepVariant calling.
-* **`assembly/`**: Workflows for assembly-based variant detection. 
-* **`pangenomes/`**: Scripts for constructing pangenome graphs with Centrolign and extracting variants from pangenome matrices.
-* **`validation/`**: Scripts for cross-method consensus validation and automated visual evidence generation using IGV snapshots.
+* **`simulation/`**: Contains scripts to programmatically introduce variants (SNPs, substitutions, indels) into genome assemblies.
+* **`haplotype_assignment/`**: Scripts for identifying inherited parental haplotypes.
+* **`variant_calling_pipelines/deepvariant/`**: Implementation of the mapping-based pipeline.
+* **`variant_calling_pipelines/assembly/`**: Workflows for assembly-based variant detection. 
+* **`variant_calling_pipelines/pangenomes/`**: Scripts for constructing pangenome graphs with Centrolign and extracting variants from pangenome matrices.
+* **`validation/`**: Scripts for cross-method consensus validation and automated validation scripts.
 * **`plots/`**: Utility scripts for generating quality control plots and other visualizations.
 
 ---
