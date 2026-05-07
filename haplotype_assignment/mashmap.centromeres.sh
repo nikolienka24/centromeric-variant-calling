@@ -7,20 +7,25 @@
 # ==========================================
 # 1. INPUT ARGUMENTS & USAGE EXAMPLE
 # ==========================================
-# Example Run:
-# qsub mashmap.centromeres.sh "query_extracted.fasta" "hap1_extracted.fasta" "hap2_extracted.fasta" "/path/to/output"
+# Example Run Command:
+# qsub script.sh -v QRY="query.fa",H1="hap1.fa",H2="hap2.fa",OUT="/path/to/output"
+#
+# Arguments provided via -v (PBS variables):
+# QRY - Path to the extracted query centromere FASTA
+# H1  - Path to the extracted haplotype 1 centromere FASTA
+# H2  - Path to the extracted haplotype 2 centromere FASTA
+# OUT - Path to the final output directory
 
-if [ "$#" -lt 4 ]; then
-    echo "Error: Missing arguments."
-    echo "Usage: qsub $0 <query.fasta> <hap1.fasta> <hap2.fasta> <out_dir>"
+if [ -z "$QRY" ] || [ -z "$H1" ] || [ -z "$H2" ] || [ -z "$OUT" ]; then
+    echo "Error: Missing required variables QRY, H1, H2, or OUT."
+    echo "Usage: qsub $0 -v QRY=\"q.fa\",H1=\"h1.fa\",H2=\"h2.fa\",OUT=\"/out/dir\""
     exit 1
 fi
 
-# Inputs (already extracted centromeres as FASTA files)
-QUERY_FA=$1
-HAP1_FA=$2
-HAP2_FA=$3
-OUT_DIR=$4
+QUERY_FA=$QRY
+HAP1_FA=$H1
+HAP2_FA=$H2
+OUT_DIR=$OUT
 
 mkdir -p "$OUT_DIR"
 
@@ -29,10 +34,19 @@ QUERY_NAME=$(basename "$QUERY_FA" .fasta)
 FINAL_OUT="$OUT_DIR/mashmap_best_${QUERY_NAME}.out"
 
 # ==========================================
-# 2. ENVIRONMENT SETUP
+# 2. ENVIRONMENT SETUP (USER DEFINED)
 # ==========================================
+# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
+# Example:
 # source /path/to/conda/etc/profile.d/conda.sh
-# conda activate bioinf
+# conda activate bioinf_env
+
+# Validation: Check if mashmap is accessible
+if ! command -v mashmap &> /dev/null; then
+    echo "Error: mashmap not found in PATH."
+    echo "Please edit the ENVIRONMENT SETUP section in this script."
+    exit 1
+fi
 
 # ==========================================
 # 3. PREPARE TARGETS (SCRATCH)

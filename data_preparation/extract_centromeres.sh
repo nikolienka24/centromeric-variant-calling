@@ -2,28 +2,37 @@
 #PBS -N extract_centromeres_per_file
 #PBS -l select=1:ncpus=1:mem=16gb:scratch_local=400gb
 #PBS -l walltime=01:00:00
+#PBS -j oe
 
 # ==========================================
-# 1. INPUT ARGUMENTS
+# 1. INPUT ARGUMENTS & USAGE EXAMPLE
 # ==========================================
-if [ "$#" -lt 3 ]; then
-    echo "Error: Missing arguments."
-    echo "Usage: qsub $0 <reference.fasta> <centromeres.bed> <output_dir>"
+# Example Run Command:
+# qsub script.sh -v REF="genome.fasta",BED="regions.bed",OUT="/path/to/output"
+#
+# Arguments provided via -v (PBS variables):
+# REF - Path to reference FASTA file
+# BED - Path to BED file with centromere coordinates
+# OUT - Path to the final output directory
+
+if [ -z "$REF" ] || [ -z "$BED" ] || [ -z "$OUT" ]; then
+    echo "Error: Missing required variables REF, BED, or OUT."
+    echo "Usage: qsub $0 -v REF=\"ref.fa\",BED=\"coords.bed\",OUT=\"/output/dir\""
     exit 1
 fi
 
-REFERENCE_FASTA=$1
-CENTROMERE_BED=$2
-FINAL_OUT_DIR=$3
+REFERENCE_FASTA=$REF
+CENTROMERE_BED=$BED
+FINAL_OUT_DIR=$OUT
 INDIVIDUAL_DIR="${FINAL_OUT_DIR}/per_chromosome"
 
 # ==========================================
 # 2. ENVIRONMENT SETUP (USER DEFINED)
 # ==========================================
 # >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-# Example for Conda users:
+# Example:
 # source /path/to/conda/etc/profile.d/conda.sh
-# conda activate your_environment_name
+# conda activate bioinf_env
 
 # Validation: Check if required tools are accessible
 if ! command -v bedtools &> /dev/null || ! command -v samtools &> /dev/null; then

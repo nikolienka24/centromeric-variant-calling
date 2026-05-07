@@ -5,29 +5,34 @@
 #PBS -j oe
 
 # ==========================================
-# 1. INPUT ARGUMENTS
+# 1. INPUT ARGUMENTS & USAGE EXAMPLE
 # ==========================================
-# Check for the 6 required arguments
-if [ "$#" -lt 6 ]; then
-    echo "Error: Missing arguments."
-    echo "Usage: qsub $0 <chr_name> <query_prefix> <h1_prefix> <h2_prefix> <input_dir> <output_dir>"
-    echo ""
-    echo "Example:"
-    echo "  qsub $0 chrX PAN027.paternal PAN028.h1 PAN028.h2 /path/to/flanks /path/to/results"
+# Example Run Command:
+# qsub script.sh -v CHR="chrX",QRY="PAN027.paternal",H1="PAN028.h1",H2="PAN028.h2",IN="/path/flanks",OUT="/path/results"
+#
+# Arguments provided via -v (PBS variables):
+# CHR - Chromosome name (e.g., chrX)
+# QRY - Prefix for the query flank files
+# H1  - Prefix for the Haplotype 1 flank files
+# H2  - Prefix for the Haplotype 2 flank files
+# IN  - Input directory containing the .fasta flank files
+# OUT - Base output directory
+
+# Check for required variables
+if [ -z "$CHR" ] || [ -z "$QRY" ] || [ -z "$H1" ] || [ -z "$H2" ] || [ -z "$IN" ] || [ -z "$OUT" ]; then
+    echo "Error: Missing required variables."
+    echo "Usage: qsub $0 -v CHR=\"chrX\",QRY=\"prefix\",H1=\"h1\",H2=\"h2\",IN=\"/in\",OUT=\"/out\""
     exit 1
 fi
 
-CHR=$1           # e.g., chrX
-CHR_QUERY=$2     # e.g., PAN027.chrX.paternal
-CHR_H1=$3        # e.g., PAN028.chrX.haplotype1
-CHR_H2=$4        # e.g., PAN028.chrX.haplotype2
-INPUT_DIR=$5     # Where your .fasta flank files are located
-OUTPUT_DIR=$6    # Where you want the results saved
+# Map variables for internal use
+CHR_QUERY=$QRY
+CHR_H1=$1
+CHR_H2=$H2
+INPUT_DIR=$IN
+FINAL_OUT_DIR="$OUT/$CHR"
 
-# Construct final output path (includes chromosome subfolder)
-FINAL_OUT_DIR="$OUTPUT_DIR/$CHR"
-
-# Create output directory if it doesn't exist
+# Create output directory
 mkdir -p "$FINAL_OUT_DIR"
 
 # Check if input directory exists
@@ -40,8 +45,9 @@ fi
 # 2. ENVIRONMENT SETUP (USER DEFINED)
 # ==========================================
 # >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
+# Example:
 # source /path/to/conda/etc/profile.d/conda.sh
-# conda activate bioinf
+# conda activate bioinf_env
 
 # Validation: Check if mashmap is accessible
 if ! command -v mashmap &> /dev/null; then

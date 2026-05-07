@@ -5,17 +5,23 @@
 #PBS -j oe
 
 # ==========================================
-# 1. INPUT ARGUMENTS
+# 1. INPUT ARGUMENTS & USAGE EXAMPLE
 # ==========================================
-# Check if at least 2 arguments are provided
-if [ "$#" -lt 2 ]; then
-    echo "Error: Missing arguments."
-    echo "Usage: qsub $0 <input.fastq> <output_dir>"
+# Example Run Command:
+# qsub script.sh -v IN="data.fastq",OUT="/path/to/results"
+#
+# Arguments provided via -v (PBS variables):
+# IN  - Path to the input FASTQ file (Long-read data)
+# OUT - Directory where the NanoPlot reports/plots will be saved
+
+if [ -z "$IN" ] || [ -z "$OUT" ]; then
+    echo "Error: Missing required variables IN or OUT."
+    echo "Usage: qsub $0 -v IN=\"data.fastq\",OUT=\"/output/dir\""
     exit 1
 fi
 
-INPUT_FASTQ=$1
-OUT_DIR=$2
+INPUT_FASTQ=$IN
+OUT_DIR=$OUT
 
 mkdir -p "$OUT_DIR"
 
@@ -37,10 +43,16 @@ fi
 # ==========================================
 # 3. ANALYSIS
 # ==========================================
-echo "Starting NanoPlot analysis..."
-echo "Input: $INPUT_FASTQ"
-echo "Output directory: $OUT_DIR"
+echo "---------------------------------------------------"
+echo "Starting NanoPlot QC Analysis"
+echo "Input FASTQ: $INPUT_FASTQ"
+echo "Output Dir:  $OUT_DIR"
+echo "---------------------------------------------------"
 
+# NanoPlot generates high-quality plots for long-read sequencing (Nanopore/PacBio)
+# providing metrics like read length N50, quality scores, and yield.
 NanoPlot --fastq "$INPUT_FASTQ" -o "$OUT_DIR"
 
-echo "Analysis complete."
+echo "---------------------------------------------------"
+echo "Analysis complete. Reports generated in $OUT_DIR"
+echo "---------------------------------------------------"
