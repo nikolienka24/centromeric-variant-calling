@@ -29,9 +29,10 @@ COVERAGE=${COV:-60}
 # 2. ENVIRONMENT SETUP (USER DEFINED)
 # ==========================================
 # >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-# Example:
-# source /path/to/conda/etc/profile.d/conda.sh
-# conda activate nanosim_env
+CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
+ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+source "$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate "$ENV_PATH"
 
 # Validation: Check if the NanoSim simulator is accessible
 if ! command -v simulator.py &> /dev/null; then

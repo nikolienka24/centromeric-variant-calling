@@ -30,9 +30,10 @@ INDIVIDUAL_DIR="${FINAL_OUT_DIR}/per_chromosome"
 # 2. ENVIRONMENT SETUP (USER DEFINED)
 # ==========================================
 # >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-# Example:
-# source /path/to/conda/etc/profile.d/conda.sh
-# conda activate bioinf_env
+CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
+ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+source "$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate "$ENV_PATH"
 
 # Validation: Check if required tools are accessible
 if ! command -v bedtools &> /dev/null || ! command -v samtools &> /dev/null; then
