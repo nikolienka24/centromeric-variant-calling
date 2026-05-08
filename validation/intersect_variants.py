@@ -152,11 +152,11 @@ def find_matches(df_a, df_b, label_a, label_b):
 
         # Acceptance logic
         if best_match_idx is not None and best_sim >= 0.5:
-            status = "[OK]" if best_sim >= 0.75 else "[SKIP]"
+            status = "[OK]" if best_sim >= 0.90 else "[SKIP]"
             print(f"  {status} {row_a['pos']} vs {df_b.loc[best_match_idx, 'pos']} | Similarity: {best_sim:.2f}")
 
-            # Only pairs with similarity >= 0.75 are eligible for final consensus
-            if round(best_sim, 2) >= 0.75:
+            # Only pairs with similarity >= 0.90 are eligible for final consensus
+            if round(best_sim, 2) >= 0.90:
                 pairs.append({
                     'idx_a': i, 'pos_a': row_a['pos'], 'alt_pos_a': row_a['alt_pos'],
                     'idx_b': best_match_idx, 'pos_b': df_b.loc[best_match_idx, 'pos'],
