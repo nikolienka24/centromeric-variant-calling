@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 #PBS -N stretcher_variant_calling
-#PBS -q default@pbs-m1.metacentrum.cz
 #PBS -l walltime=200:00:00
 #PBS -l select=1:ncpus=1:mem=4gb:scratch_local=200gb
 #PBS -j oe
