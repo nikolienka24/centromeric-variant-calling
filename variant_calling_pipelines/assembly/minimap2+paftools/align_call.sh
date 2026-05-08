@@ -35,9 +35,6 @@ ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/env
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate "$ENV_PATH"
 
-# Ensure Centrolign libraries are accessible if needed
-export LD_LIBRARY_PATH="$PROJ_DIR/centrolign/lib:$LD_LIBRARY_PATH"
-
 # ==============================================================================
 # 3. PREPARE INPUTS & OFFSETS
 # ==============================================================================
