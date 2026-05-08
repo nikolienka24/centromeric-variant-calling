@@ -70,15 +70,26 @@ python variant_distribution_per_chr.py \
 ---
 
 ### `venn_diagrams.tool_cross_validation.py`
-
-Analyzes concordance across three variant callers (Stretcher, Minimap2, Centrolign) and visualizes the overlap in a 3-way Venn diagram. Each intersection region is annotated with both the regular variant count and the homopolymer variant count (`+N` format).
-
+ 
+Analyzes concordance across three variant callers (Stretcher, Minimap2, Centrolign) and visualizes the overlap in a 3-way Venn diagram. Each intersection region is annotated with both the regular variant count and the homopolymer variant count (`+N` format). Chr22 paternal/haplotype2 data is excluded automatically.
+ 
 **Requirements:** `pandas`, `matplotlib`, `matplotlib_venn`
-
-**Note:** Input paths are currently hardcoded. Edit the `path_intersect` and `path_master` variables at the top of the script before running. Chr22 paternal/haplotype2 data is excluded automatically.
-
-**Output:** `venn.png` — Venn diagram analyzing overlap of 3 benchmarjed tools.
-
+ 
+**Usage:**
+```bash
+python venn_diagrams.tool_cross_validation.py \
+    -i 2gen.combined.2_of_3.tsv \
+    -m master.2gen.tsv \
+    -o /path/to/output/venn_concordance.png
+```
+ 
+| Argument | Description |
+|----------|-------------|
+| `-i` / `--intersect` | Intersection TSV file (variants called by ≥2 tools) |
+| `-m` / `--master` | Master variant TSV file with per-tool calls and positions |
+| `-o` / `--output` | Output PNG path |
+ 
+**Output:** Venn diagram saved as PNG (`300 dpi`)
 ---
 
 ## `qc/` — Read Quality Control
