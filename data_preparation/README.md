@@ -1,4 +1,4 @@
-# Data Preparation — Centromeric Variant Calling Benchmark
+# Data Preparation
 
 This section covers the data preparation pipeline for benchmarking variant callers on centromeric regions. It consists of two stages: **reference extraction** and **read simulation** (with optional synthetic mutation injection).
 
