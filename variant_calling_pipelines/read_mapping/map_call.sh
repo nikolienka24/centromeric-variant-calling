@@ -4,119 +4,161 @@
 #PBS -l walltime=02:00:00
 #PBS -j oe
 
-# ==========================================
-# 1. INPUT ARGUMENTS & USAGE EXAMPLE
-# ==========================================
-# Example Run Command:
-# qsub script.sh -v SAMPLE="PAN027",CHR="chr22",PARENT="paternal",OUT="/path/to/results"
+# ==============================================================================
+# DOCUMENTATION:
+# ==============================================================================
+# Maps ONT reads to a parental reference and calls variants using DeepVariant.
+# If a pre-computed BAM already exists it is reused, skipping the alignment step.
 #
-# Arguments provided via -v (PBS variables):
-# SAMPLE - Sample ID (e.g., PAN027)
-# CHR    - Chromosome (e.g., chr22)
-# PARENT - Parent haplotype (paternal/maternal)
-# OUT    - Path to the final output directory
+# 1. OFFSET EXTRACTION:
+#    Extracts genomic offset from BED file by matching REF_ID against column 1.
+#
+# 2. FILTERING STRATEGY:
+#    Stage 1: bcftools restricts calls to centromeric regions (BED_REGIONS).
+#    Stage 2: bedtools removes variants in problematic regions (BED_PROBLEMATIC).
+#    Stage 3: bedtools removes variants in genomic gaps (BED_GAPS).
+#
+# USAGE:
+#    1. Copy config.example.sh to config.sh and fill in your paths.
+#    2. Submit with: qsub align_call.sh
+#
+# NOTE: PBS directives are parsed before the shell runs and cannot use
+#       variables, so any PBS-level paths must be set directly in the header.
+# ==============================================================================
 
-if [ -z "$SAMPLE" ] || [ -z "$CHR" ] || [ -z "$PARENT" ] || [ -z "$OUT" ]; then
-    echo "Error: Missing required variables SAMPLE, CHR, PARENT, or OUT."
-    echo "Usage: qsub $0 -v SAMPLE=\"S\",CHR=\"C\",PARENT=\"P\",OUT=\"/path\""
+# --- LOAD USER CONFIGURATION ---
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG="$SCRIPT_DIR/config.sh"
+if [[ ! -f "$CONFIG" ]]; then
+    echo "ERROR: config.sh not found. Copy config.example.sh to config.sh and fill in your paths."
+    exit 1
+fi
+# shellcheck source=config.sh
+source "$CONFIG"
+
+# ==============================================================================
+# 1. VALIDATE CONFIGURATION
+# ==============================================================================
+if [ -z "$SAMPLE_NAME" ] || [ -z "$OUT" ]; then
+    echo "ERROR: Missing required variables SAMPLE_NAME or OUT in config.sh."
     exit 1
 fi
 
-# Map variables for clarity
-SAMPLE_NAME="${SAMPLE}.${CHR}.${PARENT}"
-OUT_DIR="$OUT/$SAMPLE_NAME"
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT/$SAMPLE_NAME"
 
-# ==========================================
-# 2. ENVIRONMENT SETUP (USER DEFINED)
-# ==========================================
-# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-PROJECT_DIR="/storage/praha5-elixir/projects/bioinf-fi/polakova/BP"
-CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
-CONDA_ENV="$PROJECT_DIR/apps/miniconda3/envs/bioinf"
-
-source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
-
-# Tool and Container paths
-CONTAINER_IMG="${PROJECT_DIR}/__scripts/deepvariant/deepvariant_1.10.0.sif"
-
-# Validation: Check if required tools/images are accessible
-for TOOL in minimap2 samtools bcftools singularity; do
-    if ! command -v $TOOL &> /dev/null; then
-        echo "Error: $TOOL not found in PATH."
+# Validate required tools and container
+for TOOL in minimap2 samtools bcftools bedtools singularity; do
+    if ! command -v "$TOOL" &> /dev/null; then
+        echo "ERROR: $TOOL not found in PATH."
         exit 1
     fi
 done
 
 if [ ! -f "$CONTAINER_IMG" ]; then
-    echo "Error: DeepVariant Singularity image not found at $CONTAINER_IMG"
+    echo "ERROR: DeepVariant Singularity image not found at $CONTAINER_IMG"
     exit 1
 fi
 
-# ==========================================
-# 3. PREPARE INPUTS (SCRATCH)
-# ==========================================
+# ==============================================================================
+# 2. ENVIRONMENT SETUP
+# ==============================================================================
+# shellcheck source=/dev/null
+source "$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV" || { echo "ERROR: Failed to activate conda environment: $CONDA_ENV"; exit 1; }
+
+# ==============================================================================
+# 3. PREPARE INPUTS & OFFSETS (SCRATCH)
+# ==============================================================================
 echo "Moving to scratch: $SCRATCHDIR"
 cd "$SCRATCHDIR" || exit 1
 mkdir -p tmp && export TMPDIR="$SCRATCHDIR/tmp"
 
-# Dynamic Input Mapping (Update these paths to match your folder structure)
-REF="$PROJECT_DIR/__data/pedigree/assembliesv1.1/PAN011_hap2_HiFi_element_final_XY_hap2.polished.fasta"
-READS_BAM="$PROJECT_DIR/__data/pedigree/map_ont/PAN_realign.${SAMPLE_NAME}.bam"
-BED_FILTER="$PROJECT_DIR/__data/pedigree/annotations_v1.1/centromeres_bed/PAN011_hap2_HiFi_element_final_XY_hap2.polished.cenSat.active_hor_merged_clean.bed"
-
-# Localize Reference
+# Localize reference to scratch
 cp "$REF" ./ref.fasta
 samtools faidx ./ref.fasta
 
-# ==========================================
+# Extract genomic offset for the reference sequence
+REF_OFFSET=$(awk -v id="$REF_ID" '$1 == id {print $2; exit}' "$BED_OFFSETS" | tr -d '\r')
+REF_OFFSET=${REF_OFFSET:-0}
+echo "Offset detected: REF=$REF_OFFSET"
+
+# ==============================================================================
 # 4. STEP 1: MAPPING (IF BAM NOT PRESENT)
-# ==========================================
+# ==============================================================================
 FINAL_BAM_NAME="PAN_realign.${SAMPLE_NAME}.to.PAN011_hap2.bam"
 
 echo "Checking for existing alignment..."
-if [ -f "$PROJECT_DIR/__data/pedigree/map_ont_parent_to_GP/$FINAL_BAM_NAME" ]; then
+if [ -f "$BAM_DIR/$FINAL_BAM_NAME" ]; then
     echo "BAM exists. Localizing..."
-    cp "$PROJECT_DIR/__data/pedigree/map_ont_parent_to_GP/$FINAL_BAM_NAME" ./mapped_sorted.bam
-    cp "$PROJECT_DIR/__data/pedigree/map_ont_parent_to_GP/${FINAL_BAM_NAME}.bai" ./mapped_sorted.bam.bai
+    cp "$BAM_DIR/$FINAL_BAM_NAME" ./mapped_sorted.bam
+    cp "$BAM_DIR/${FINAL_BAM_NAME}.bai" ./mapped_sorted.bam.bai
 else
     echo "Running Minimap2 alignment..."
-    samtools fastq "$READS_BAM" | minimap2 -ax map-ont -t 16 ref.fasta - | samtools sort -@ 8 -o mapped_sorted.bam
+    samtools fastq "$READS_BAM" | \
+        minimap2 -ax map-ont -t 16 ref.fasta - | \
+        samtools sort -@ 8 -o mapped_sorted.bam
     samtools index mapped_sorted.bam
 fi
 
-# ==========================================
+# ==============================================================================
 # 5. STEP 2: RUN DEEPVARIANT
-# ==========================================
-echo "Running DeepVariant calling..."
+# ==============================================================================
+echo "Running DeepVariant variant calling..."
 
 singularity exec --bind "$SCRATCHDIR:/data" "$CONTAINER_IMG" \
-  /opt/deepvariant/bin/run_deepvariant \
-  --model_type=ONT_R104 \
-  --ref="/data/ref.fasta" \
-  --reads="/data/mapped_sorted.bam" \
-  --output_vcf="/data/raw.vcf.gz" \
-  --num_shards=16 \
-  --logging_dir="/data"
+    /opt/deepvariant/bin/run_deepvariant \
+    --model_type=ONT_R104 \
+    --ref="/data/ref.fasta" \
+    --reads="/data/mapped_sorted.bam" \
+    --output_vcf="/data/raw.vcf.gz" \
+    --num_shards=16 \
+    --logging_dir="/data"
 
-if [ $? -eq 0 ]; then
-    echo "DeepVariant successful. Filtering VCF..."
+DV_EXIT=$?
 
-    tabix -p vcf raw.vcf.gz
-
-    # Apply quality and region filters
-    bcftools view -i 'FILTER="PASS" && QUAL>=20 && FORMAT/DP>=20 && (FORMAT/AD[0:1])/(FORMAT/DP)>=0.8' \
-        -R "$BED_FILTER" \
-        raw.vcf.gz -O v -o "${SAMPLE_NAME}.filtered.vcf"
-
-    # Save raw and filtered results
-    # gunzip -c raw.vcf.gz > "${SAMPLE_NAME}.raw.vcf"
-    cp "${SAMPLE_NAME}.raw.vcf" "$OUT_DIR/"
-    cp "${SAMPLE_NAME}.filtered.vcf" "$OUT_DIR/"
-
-    echo "Results saved to: $OUT_DIR"
-else
-    echo "Error: DeepVariant execution failed."
+if [ $DV_EXIT -ne 0 ]; then
+    echo "ERROR: DeepVariant execution failed with exit code $DV_EXIT."
     exit 1
 fi
+
+# ==============================================================================
+# 6. FILTER & EXPORT RESULTS
+# ==============================================================================
+echo "Filtering VCF..."
+tabix -p vcf raw.vcf.gz
+
+# Apply quality filters and restrict to centromeric regions
+bcftools view \
+    -i 'FILTER="PASS" && QUAL>=20 && FORMAT/DP>=20 && (FORMAT/AD[0:1])/(FORMAT/DP)>=0.8' \
+    -R "$BED_REGIONS" \
+    raw.vcf.gz -O v -o bcftools_filtered.vcf
+
+# --- OFFSET CORRECTION ---
+# Add the genomic offset to the VCF POS field so coordinates are absolute
+awk -v r_off="$REF_OFFSET" 'BEGIN {OFS="\t"}
+    /^#/ {print $0; next}
+    { $2 = $2 + r_off; print $0 }
+' bcftools_filtered.vcf > offset_corrected.vcf
+
+# --- STAGE 2: Filter problematic regions ---
+grep -F "$REF_ID" "$BED_PROBLEMATIC" > ref_probs.bed
+bedtools intersect -header -v -a offset_corrected.vcf -b ref_probs.bed > stage2.vcf
+
+# --- STAGE 3: Filter genomic gaps ---
+grep -F "$REF_ID" "$BED_GAPS" > ref_gaps.bed
+bedtools intersect -header -v -a stage2.vcf -b ref_gaps.bed > "${SAMPLE_NAME}.filtered.vcf"
+
+# Export results
+cp raw.vcf.gz "$OUT/$SAMPLE_NAME/${SAMPLE_NAME}.raw.vcf.gz" || exit 1
+cp raw.vcf.gz.tbi "$OUT/$SAMPLE_NAME/${SAMPLE_NAME}.raw.vcf.gz.tbi" || exit 1
+cp "${SAMPLE_NAME}.filtered.vcf" "$OUT/$SAMPLE_NAME/" || exit 1
+
+# Clean up all intermediate scratch files
+rm -f ref.fasta ref.fasta.fai mapped_sorted.bam mapped_sorted.bam.bai \
+       raw.vcf.gz raw.vcf.gz.tbi \
+       bcftools_filtered.vcf offset_corrected.vcf \
+       ref_probs.bed ref_gaps.bed \
+       stage2.vcf "${SAMPLE_NAME}.filtered.vcf"
+rm -rf tmp
+
+echo "Results saved to: $OUT/$SAMPLE_NAME"
