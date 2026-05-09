@@ -19,12 +19,21 @@ Loads variant calls from three tools, performs all pairwise comparisons using po
 
 **Requirements:** `pandas`, `edlib`
 
-> **Note:** Input and output paths are currently hardcoded at the bottom of the script. Edit the `home_dir`, `output_path`, `centrolign_input`, `minimap_input`, and `stretcher_input` variables before running.
-
 **Usage:**
 ```bash
-python intersect_variants.py
+python intersect_variants.py \
+    -c centrolign_variants.tsv \
+    -s stretcher_variants.bedpe \
+    -m minimap2_variants.vcf \
+    -o /path/to/output/dir
 ```
+
+| Argument | Description |
+|----------|-------------|
+| `-c` / `--centrolign` | Path to Centrolign TSV output file |
+| `-s` / `--stretcher` | Path to Stretcher BEDPE output file |
+| `-m` / `--minimap` | Path to Minimap2/Paftools VCF output file |
+| `-o` / `--output_dir` | Directory where consensus TSV files will be saved |
 
 ---
 
@@ -42,17 +51,17 @@ The script expects one file per tool in its native output format:
 
 ## Method
 
-**1. Normalization**  
+**1. Normalization**
 All REF/ALT sequences are uppercased and stripped of common leading/trailing bases (left- and right-trimming) to put variants in a canonical form before comparison.
 
-**2. Pairwise matching**  
+**2. Pairwise matching**
 All three tool pairs are compared independently (Stretcher↔Minimap2, Stretcher↔Centrolign, Minimap2↔Centrolign). For each variant in tool A, candidates in tool B within a position window are considered:
 - **±100 bp** window for short variants (≤50 bp)
 - **±20,000 bp** window for structural variants (>50 bp)
 
 Candidates are scored using a two-step similarity metric: length-ratio similarity followed by edit distance (Levenshtein via `edlib`, HW/infix mode). A pair is accepted if similarity ≥ 0.90.
 
-**3. Consensus assembly**  
+**3. Consensus assembly**
 Matched pairs are assembled into the final consensus in priority order:
 
 | Priority | Condition | `tools_count` |
@@ -68,7 +77,7 @@ Each variant index is marked as used after being assigned to a consensus entry t
 
 ## Outputs
 
-Both files are saved to `output_path` (hardcoded, default: `validation/3gen/chrX_maternal/`):
+Both files are saved to the directory specified by `--output_dir`:
 
 | File | Description |
 |------|-------------|

@@ -1,14 +1,31 @@
 import pandas as pd
 import os
+import sys
+import argparse
 import edlib
 
 """
 CONSENSUS VARIANT CALLER
 -----------------------
 This script standardizes and compares mutation data from three bioinformatic tools:
-Centrolign, Stretcher, and Minimap2. It identifies variants that are consistently 
+Centrolign, Stretcher, and Minimap2. It identifies variants that are consistently
 reported across multiple methodologies to increase the reliability of calls.
 """
+
+
+def parse_args():
+    """Parses and returns command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Identify consensus variants across Centrolign, Stretcher, and Minimap2.")
+    parser.add_argument("-c", "--centrolign", required=True,
+                        help="Path to Centrolign TSV output file")
+    parser.add_argument("-s", "--stretcher", required=True,
+                        help="Path to Stretcher BEDPE output file")
+    parser.add_argument("-m", "--minimap", required=True,
+                        help="Path to Minimap2/Paftools VCF output file")
+    parser.add_argument("-o", "--output_dir", required=True,
+                        help="Directory where consensus TSV files will be saved")
+    return parser.parse_args()
 
 
 def normalize_sequences(ref, alt):
@@ -44,7 +61,6 @@ def get_similarity(ref1, alt1, ref2, alt2):
     len_diff1 = abs(len(s_ref1) - len(s_alt1))
     len_diff2 = abs(len(s_ref2) - len(s_alt2))
 
-    # Avoid division by zero
     max_len_diff = max(len_diff1, len_diff2, 1)
     len_sim = 1.0 - (abs(len_diff1 - len_diff2) / max_len_diff)
 
@@ -69,51 +85,56 @@ def get_similarity(ref1, alt1, ref2, alt2):
 def load_centrolign(path):
     """Parses Centrolign TSV output and renames columns for uniformity."""
     if not os.path.exists(path):
-        print(f"WARNING: Centrolign file not found at: {path}")
+        print(f"WARNING: Centrolign file not found at: {path}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
     try:
         df = pd.read_csv(path, sep='\t')
         if 'Ref_Pos' in df.columns:
-            df = df.rename(columns={'Ref_Pos': 'pos', 'Mut_Pos': 'alt_pos', 'Ref_Base': 'ref', 'Alt_Base': 'alt'})
+            df = df.rename(columns={
+                'Ref_Pos': 'pos', 'Mut_Pos': 'alt_pos',
+                'Ref_Base': 'ref', 'Alt_Base': 'alt'})
         df = df.assign(tool='centrolign')
         return df[['pos', 'alt_pos', 'ref', 'alt', 'tool']]
     except Exception as e:
-        print(f"ERROR: Failed to read Centrolign data: {e}")
+        print(f"ERROR: Failed to read Centrolign data: {e}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
 
 
 def load_stretcher(path):
     """Parses EMBOSS Stretcher alignment output and converts to 1-based indexing."""
     if not os.path.exists(path):
-        print(f"WARNING: Stretcher file not found at: {path}")
+        print(f"WARNING: Stretcher file not found at: {path}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
     try:
         df = pd.read_csv(path, sep='\t')
         if 'start1' in df.columns:
-            df = df.rename(columns={'start1': 'pos', 'start2': 'alt_pos', 'sequence1': 'ref', 'sequence2': 'alt'})
-            # Adjusting coordinates from 0-based to 1-based
+            df = df.rename(columns={
+                'start1': 'pos', 'start2': 'alt_pos',
+                'sequence1': 'ref', 'sequence2': 'alt'})
+            # Adjust coordinates from 0-based to 1-based
             df['pos'] = df['pos'] + 1
             df['alt_pos'] = df['alt_pos'] + 1
         df = df.assign(tool='stretcher')
         return df[['pos', 'alt_pos', 'ref', 'alt', 'tool']]
     except Exception as e:
-        print(f"ERROR: Failed to read Stretcher data: {e}")
+        print(f"ERROR: Failed to read Stretcher data: {e}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
 
 
 def load_minimap2(path):
     """Parses Minimap2/Paftools VCF output."""
     if not os.path.exists(path):
-        print(f"WARNING: Minimap2 file not found at: {path}")
+        print(f"WARNING: Minimap2 file not found at: {path}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
     try:
         df = pd.read_csv(path, sep='\t', comment='#', header=None,
-                         names=['chrom', 'pos', 'id', 'ref', 'alt', 'qual', 'filter', 'info', 'format', 'sample'])
+                         names=['chrom', 'pos', 'id', 'ref', 'alt', 'qual',
+                                'filter', 'info', 'format', 'sample'])
         df['alt_pos'] = None
         df = df.assign(tool='minimap2+paftools')
         return df[['pos', 'alt_pos', 'ref', 'alt', 'tool']]
     except Exception as e:
-        print(f"ERROR: Failed to read Minimap2 data: {e}")
+        print(f"ERROR: Failed to read Minimap2 data: {e}", file=sys.stderr)
         return pd.DataFrame(columns=['pos', 'alt_pos', 'ref', 'alt', 'tool'])
 
 
@@ -133,7 +154,7 @@ def find_matches(df_a, df_b, label_a, label_b):
         s_ref, s_alt = normalize_sequences(row_a['ref'], row_a['alt'])
         variant_len = max(len(s_ref), len(s_alt))
 
-        # Use a larger window for Structural Variants (>50bp)
+        # Use a larger window for structural variants (>50 bp)
         current_slack = 20000 if variant_len > 50 else 100
 
         candidates = df_b[(df_b['pos'] - row_a['pos']).abs() <= current_slack].copy()
@@ -144,18 +165,16 @@ def find_matches(df_a, df_b, label_a, label_b):
         for j, row_b in candidates.iterrows():
             if j in used_b:
                 continue
-
             sim = get_similarity(row_a['ref'], row_a['alt'], row_b['ref'], row_b['alt'])
             if sim > best_sim:
                 best_sim = sim
                 best_match_idx = j
 
-        # Acceptance logic
+        # Only pairs with similarity >= 0.90 are eligible for final consensus
         if best_match_idx is not None and best_sim >= 0.5:
             status = "[OK]" if best_sim >= 0.90 else "[SKIP]"
             print(f"  {status} {row_a['pos']} vs {df_b.loc[best_match_idx, 'pos']} | Similarity: {best_sim:.2f}")
 
-            # Only pairs with similarity >= 0.90 are eligible for final consensus
             if round(best_sim, 2) >= 0.90:
                 pairs.append({
                     'idx_a': i, 'pos_a': row_a['pos'], 'alt_pos_a': row_a['alt_pos'],
@@ -168,101 +187,128 @@ def find_matches(df_a, df_b, label_a, label_b):
     return pairs
 
 
-# --- Configuration and File Paths ---
-home_dir = "/storage/praha5-elixir/projects/bioinf-fi/polakova/BP/__results/"
-output_path = os.path.join(home_dir, "validation/3gen/chrX_maternal/")
-os.makedirs(output_path, exist_ok=True)
+def build_consensus(pairs_sm, pairs_sc, pairs_mc):
+    """
+    Builds the final consensus list from pairwise matches.
+    Prioritizes triplets (all 3 tools), then doublets.
 
-centrolign_input = home_dir + 'centrolign_align/pedigree_3generations/chrX_maternal_3gen/mutations_3gen_final_clean.final.tsv'
-minimap_input = home_dir + 'minimap2_paftools/pedigree.3generations/chrX_maternal_3gen/mutations_3gen_final.final.vcf'
-stretcher_input = home_dir + "stretcher/pedigree.3generations/PAN027.chrX.maternal/intersected_generations.bedpe"
+    Returns:
+        Tuple of (consensus list, triplets count).
+    """
+    final_consensus_list = []
+    used_s, used_m, used_c = set(), set(), set()
+    triplets_count = 0
 
-# --- Data Loading ---
-df_stretcher = load_stretcher(stretcher_input)
-df_minimap = load_minimap2(minimap_input)
-df_centrolign = load_centrolign(centrolign_input)
+    # 1. Triplets (all three tools agree)
+    for pair in pairs_sm:
+        s_idx, m_idx = pair['idx_a'], pair['idx_b']
+        match_sc = next((x for x in pairs_sc if x['idx_a'] == s_idx), None)
+        match_mc = next((x for x in pairs_mc if x['idx_a'] == m_idx), None)
 
-print(f"Record counts:\nStretcher: {len(df_stretcher)}\nMinimap2: {len(df_minimap)}\nCentrolign: {len(df_centrolign)}")
+        if match_sc and match_mc and match_sc['idx_b'] == match_mc['idx_b']:
+            c_idx = match_sc['idx_b']
+            final_consensus_list.append({
+                'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'],
+                'ref_pos_minimap': pair['pos_b'],
+                'ref_pos_centrolign': match_sc['pos_b'], 'alt_pos_centrolign': match_sc['alt_pos_b'],
+                'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 3,
+                'sim_S_M': round(pair['sim'], 2), 'sim_S_C': round(match_sc['sim'], 2),
+                'sim_M_C': round(match_mc['sim'], 2)
+            })
+            used_s.add(s_idx)
+            used_m.add(m_idx)
+            used_c.add(c_idx)
+            triplets_count += 1
 
-# --- Pairwise Tool Comparisons ---
-pairs_stretcher_minimap = find_matches(df_stretcher, df_minimap, "Stretcher", "Minimap")
-pairs_stretcher_centrolign = find_matches(df_stretcher, df_centrolign, "Stretcher", "Centrolign")
-pairs_minimap_centrolign = find_matches(df_minimap, df_centrolign, "Minimap", "Centrolign")
+    # 2. Doublets: Stretcher + Minimap
+    for pair in pairs_sm:
+        if pair['idx_a'] not in used_s and pair['idx_b'] not in used_m:
+            final_consensus_list.append({
+                'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'],
+                'ref_pos_minimap': pair['pos_b'],
+                'ref_pos_centrolign': None, 'alt_pos_centrolign': None,
+                'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 2,
+                'sim_S_M': round(pair['sim'], 2), 'sim_S_C': None, 'sim_M_C': None
+            })
+            used_s.add(pair['idx_a'])
+            used_m.add(pair['idx_b'])
 
-final_consensus_list = []
-used_s_indices, used_m_indices, used_c_indices = set(), set(), set()
-triplets_count = 0
+    # 3. Doublets: Stretcher + Centrolign
+    for pair in pairs_sc:
+        if pair['idx_a'] not in used_s and pair['idx_b'] not in used_c:
+            final_consensus_list.append({
+                'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'],
+                'ref_pos_minimap': None,
+                'ref_pos_centrolign': pair['pos_b'], 'alt_pos_centrolign': pair['alt_pos_b'],
+                'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 2,
+                'sim_S_M': None, 'sim_S_C': round(pair['sim'], 2), 'sim_M_C': None
+            })
+            used_s.add(pair['idx_a'])
+            used_c.add(pair['idx_b'])
 
-# 1. Logic for Triplets (Intersects all three tools)
-for pair in pairs_stretcher_minimap:
-    s_idx, m_idx = pair['idx_a'], pair['idx_b']
-    match_sc = next((x for x in pairs_stretcher_centrolign if x['idx_a'] == s_idx), None)
-    match_mc = next((x for x in pairs_minimap_centrolign if x['idx_a'] == m_idx), None)
+    # 4. Doublets: Minimap + Centrolign
+    for pair in pairs_mc:
+        if pair['idx_a'] not in used_m and pair['idx_b'] not in used_c:
+            final_consensus_list.append({
+                'ref_pos_stretcher': None, 'alt_pos_stretcher': None,
+                'ref_pos_minimap': pair['pos_a'],
+                'ref_pos_centrolign': pair['pos_b'], 'alt_pos_centrolign': pair['alt_pos_b'],
+                'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 2,
+                'sim_S_M': None, 'sim_S_C': None, 'sim_M_C': round(pair['sim'], 2)
+            })
+            used_m.add(pair['idx_a'])
+            used_c.add(pair['idx_b'])
 
-    if match_sc and match_mc and match_sc['idx_b'] == match_mc['idx_b']:
-        c_idx = match_sc['idx_b']
-        final_consensus_list.append({
-            'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'],
-            'ref_pos_minimap': pair['pos_b'],
-            'ref_pos_centrolign': match_sc['pos_b'], 'alt_pos_centrolign': match_sc['alt_pos_b'],
-            'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 3,
-            'sim_S_M': round(pair['sim'], 2), 'sim_S_C': round(match_sc['sim'], 2), 'sim_M_C': round(match_mc['sim'], 2)
-        })
-        used_s_indices.add(s_idx)
-        used_m_indices.add(m_idx)
-        used_c_indices.add(c_idx)
-        triplets_count += 1
+    return final_consensus_list, triplets_count
 
-# 2. Logic for Doublets (Stretcher + Minimap only)
-for pair in pairs_stretcher_minimap:
-    if pair['idx_a'] not in used_s_indices and pair['idx_b'] not in used_m_indices:
-        final_consensus_list.append({
-            'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'],
-            'ref_pos_minimap': pair['pos_b'],
-            'ref_pos_centrolign': None, 'alt_pos_centrolign': None, 'ref_seq': pair['ref'], 'alt_seq': pair['alt'],
-            'tools_count': 2, 'sim_S_M': round(pair['sim'], 2), 'sim_S_C': None, 'sim_M_C': None})
-        used_s_indices.add(pair['idx_a'])
-        used_m_indices.add(pair['idx_b'])
 
-# 3. Logic for Doublets (Stretcher + Centrolign only)
-for pair in pairs_stretcher_centrolign:
-    if pair['idx_a'] not in used_s_indices and pair['idx_b'] not in used_c_indices:
-        final_consensus_list.append({
-            'ref_pos_stretcher': pair['pos_a'], 'alt_pos_stretcher': pair['alt_pos_a'], 'ref_pos_minimap': None,
-            'ref_pos_centrolign': pair['pos_b'], 'alt_pos_centrolign': pair['alt_pos_b'], 'ref_seq': pair['ref'],
-            'alt_seq': pair['alt'], 'tools_count': 2, 'sim_S_M': None, 'sim_S_C': round(pair['sim'], 2),
-            'sim_M_C': None})
-        used_s_indices.add(pair['idx_a'])
-        used_c_indices.add(pair['idx_b'])
+def main():
+    args = parse_args()
 
-# 4. Logic for Doublets (Minimap + Centrolign only)
-for pair in pairs_minimap_centrolign:
-    if pair['idx_a'] not in used_m_indices and pair['idx_b'] not in used_c_indices:
-        final_consensus_list.append({
-            'ref_pos_stretcher': None, 'alt_pos_stretcher': None, 'ref_pos_minimap': pair['pos_a'],
-            'ref_pos_centrolign': pair['pos_b'], 'alt_pos_centrolign': pair['alt_pos_b'],
-            'ref_seq': pair['ref'], 'alt_seq': pair['alt'], 'tools_count': 2,
-            'sim_M_C': round(pair['sim'], 2), 'sim_S_M': None, 'sim_S_C': None})
-        used_m_indices.add(pair['idx_a'])
-        used_c_indices.add(pair['idx_b'])
+    os.makedirs(args.output_dir, exist_ok=True)
 
-# --- Final Processing and Output ---
-final_df = pd.DataFrame(final_consensus_list)
-if not final_df.empty:
-    # Sort variants based on the earliest reference position found among tools
-    final_df['sort_pos'] = final_df['ref_pos_stretcher'].fillna(final_df['ref_pos_minimap']).fillna(
-        final_df['ref_pos_centrolign'])
-    final_df = final_df.sort_values('sort_pos').drop(columns=['sort_pos'])
+    # Load data
+    df_stretcher = load_stretcher(args.stretcher)
+    df_minimap = load_minimap2(args.minimap)
+    df_centrolign = load_centrolign(args.centrolign)
 
-    # Save variants supported by 2 or more tools
-    final_df.to_csv(os.path.join(output_path, 'final_consensus_2_of_3.tsv'), sep='\t', index=False)
+    print(f"Record counts:\n"
+          f"  Stretcher:  {len(df_stretcher)}\n"
+          f"  Minimap2:   {len(df_minimap)}\n"
+          f"  Centrolign: {len(df_centrolign)}")
 
-    # Save variants supported by exactly all 3 tools
-    df_3_of_3 = final_df[final_df['tools_count'] == 3]
-    df_3_of_3.to_csv(os.path.join(output_path, 'final_consensus_3_of_3.tsv'), sep='\t', index=False)
+    if df_stretcher.empty and df_minimap.empty and df_centrolign.empty:
+        print("ERROR: All input files are empty or missing.", file=sys.stderr)
+        sys.exit(1)
 
-print("\n" + "=" * 70)
-print(f"VARIANTS SUPPORTED BY ALL 3 TOOLS: {triplets_count}")
-print(f"TOTAL UNIQUE CONSENSUS VARIANTS (2+ tools): {len(final_df)}")
-print("=" * 70)
-print(f"Files saved to: {output_path}")
+    # Pairwise comparisons
+    pairs_sm = find_matches(df_stretcher, df_minimap, "Stretcher", "Minimap")
+    pairs_sc = find_matches(df_stretcher, df_centrolign, "Stretcher", "Centrolign")
+    pairs_mc = find_matches(df_minimap, df_centrolign, "Minimap", "Centrolign")
+
+    # Build consensus
+    final_consensus_list, triplets_count = build_consensus(pairs_sm, pairs_sc, pairs_mc)
+
+    # Sort and save
+    final_df = pd.DataFrame(final_consensus_list)
+    if not final_df.empty:
+        final_df['sort_pos'] = (final_df['ref_pos_stretcher']
+                                .fillna(final_df['ref_pos_minimap'])
+                                .fillna(final_df['ref_pos_centrolign']))
+        final_df = final_df.sort_values('sort_pos').drop(columns=['sort_pos'])
+
+        final_df.to_csv(os.path.join(args.output_dir, 'final_consensus_2_of_3.tsv'), sep='\t', index=False)
+        final_df[final_df['tools_count'] == 3].to_csv(
+            os.path.join(args.output_dir, 'final_consensus_3_of_3.tsv'), sep='\t', index=False)
+    else:
+        print("WARNING: No consensus variants found.", file=sys.stderr)
+
+    print("\n" + "=" * 70)
+    print(f"VARIANTS SUPPORTED BY ALL 3 TOOLS: {triplets_count}")
+    print(f"TOTAL UNIQUE CONSENSUS VARIANTS (2+ tools): {len(final_df)}")
+    print("=" * 70)
+    print(f"Files saved to: {args.output_dir}")
+
+
+if __name__ == "__main__":
+    main()
