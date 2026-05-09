@@ -4,111 +4,113 @@
 #PBS -l walltime=02:00:00
 #PBS -j oe
 
-# ==========================================
-# 1. INPUT ARGUMENTS & USAGE EXAMPLE
-# ==========================================
-# Example Run Command:
-# qsub script.sh -v CHR="chrX",QRY="PAN027.paternal",H1="PAN028.h1",H2="PAN028.h2",IN="/path/flanks",OUT="/path/results"
+# ==============================================================================
+# DOCUMENTATION:
+# ==============================================================================
+# Aligns left and right centromere flanking regions of a query sequence against
+# two parental haplotypes using MashMap to determine haplotype identity.
 #
-# Arguments provided via -v (PBS variables):
-# CHR - Chromosome name (e.g., chrX)
-# QRY - Prefix for the query flank files
-# H1  - Prefix for the Haplotype 1 flank files
-# H2  - Prefix for the Haplotype 2 flank files
-# IN  - Input directory containing the .fasta flank files
-# OUT - Base output directory
+# USAGE:
+#    1. Copy config.example.sh to config.sh and fill in your paths.
+#    2. Submit with: qsub mashmap.flanks.sh
+#
+# NOTE: PBS directives are parsed before the shell runs and cannot use
+#       variables, so any PBS-level paths must be set directly in the header.
+# ==============================================================================
 
-# Check for required variables
+# --- LOAD USER CONFIGURATION ---
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG="$SCRIPT_DIR/config.sh"
+if [[ ! -f "$CONFIG" ]]; then
+    echo "ERROR: config.sh not found. Copy config.example.sh to config.sh and fill in your paths."
+    exit 1
+fi
+# shellcheck source=config.sh
+source "$CONFIG"
+
+# ==============================================================================
+# 1. VALIDATE CONFIGURATION
+# ==============================================================================
 if [ -z "$CHR" ] || [ -z "$QRY" ] || [ -z "$H1" ] || [ -z "$H2" ] || [ -z "$IN" ] || [ -z "$OUT" ]; then
-    echo "Error: Missing required variables."
-    echo "Usage: qsub $0 -v CHR=\"chrX\",QRY=\"prefix\",H1=\"h1\",H2=\"h2\",IN=\"/in\",OUT=\"/out\""
+    echo "ERROR: Missing required variables CHR, QRY, H1, H2, IN, or OUT in config.sh."
     exit 1
 fi
 
-# Map variables for internal use
-CHR_QUERY=$QRY
-CHR_H1=$1
-CHR_H2=$H2
-INPUT_DIR=$IN
-FINAL_OUT_DIR="$OUT/$CHR"
-
-# Create output directory
-mkdir -p "$FINAL_OUT_DIR"
-
-# Check if input directory exists
-if [ ! -d "$INPUT_DIR" ]; then
-    echo "Error: Input directory $INPUT_DIR does not exist."
+if [ ! -d "$IN" ]; then
+    echo "ERROR: Input directory $IN does not exist."
     exit 1
 fi
 
-# ==========================================
-# 2. ENVIRONMENT SETUP (USER DEFINED)
-# ==========================================
-# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
-ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+mkdir -p "$OUT/$CHR"
+
+# ==============================================================================
+# 2. ENVIRONMENT SETUP
+# ==============================================================================
+# shellcheck source=/dev/null
 source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$ENV_PATH"
+conda activate "$ENV_PATH" || { echo "ERROR: Failed to activate conda environment: $ENV_PATH"; exit 1; }
 
-# Validation: Check if mashmap is accessible
 if ! command -v mashmap &> /dev/null; then
-    echo "Error: mashmap not found in PATH."
-    echo "Please edit the ENVIRONMENT SETUP section in this script."
+    echo "ERROR: mashmap not found in PATH."
     exit 1
 fi
 
-# ==========================================
+# ==============================================================================
 # 3. SCRATCH SETUP
-# ==========================================
+# ==============================================================================
 echo "Setting up scratch and moving to $SCRATCHDIR"
 cd "$SCRATCHDIR" || exit 1
 
-# ==========================================
+# ==============================================================================
 # 4. MAPPING
-# ==========================================
+# ==============================================================================
 
 # --- LEFT FLANK ---
 echo "Mapping LEFT flank..."
 # Prepare targets with H1/H2 prefixes to distinguish them in output
-sed "s/>/>H1_L_/" "${INPUT_DIR}/${CHR_H1}_left_flank.fasta" > targets_L.fasta
-sed "s/>/>H2_L_/" "${INPUT_DIR}/${CHR_H2}_left_flank.fasta" >> targets_L.fasta
+sed "s/>/>H1_L_/" "${IN}/${H1}_left_flank.fasta" > targets_L.fasta
+sed "s/>/>H2_L_/" "${IN}/${H2}_left_flank.fasta" >> targets_L.fasta
 
 mashmap -r targets_L.fasta \
-        -q "${INPUT_DIR}/${CHR_QUERY}_left_flank.fasta" \
-        -t 16 -n 2 --pi 95 -o "${CHR_QUERY}_left.out"
+        -q "${IN}/${QRY}_left_flank.fasta" \
+        -t 16 -n 2 --pi 95 -o "${QRY}_left.out"
 
 # --- RIGHT FLANK ---
 echo "Mapping RIGHT flank..."
-# Prepare targets with H1/H2 prefixes
-sed "s/>/>H1_R_/" "${INPUT_DIR}/${CHR_H1}_right_flank.fasta" > targets_R.fasta
-sed "s/>/>H2_R_/" "${INPUT_DIR}/${CHR_H2}_right_flank.fasta" >> targets_R.fasta
+sed "s/>/>H1_R_/" "${IN}/${H1}_right_flank.fasta" > targets_R.fasta
+sed "s/>/>H2_R_/" "${IN}/${H2}_right_flank.fasta" >> targets_R.fasta
 
 mashmap -r targets_R.fasta \
-        -q "${INPUT_DIR}/${CHR_QUERY}_right_flank.fasta" \
-        -t 16 -n 2 --pi 95 -o "${CHR_QUERY}_right.out"
+        -q "${IN}/${QRY}_right_flank.fasta" \
+        -t 16 -n 2 --pi 95 -o "${QRY}_right.out"
 
-# ==========================================
+# ==============================================================================
 # 5. POST-PROCESSING (BEST HITS)
-# ==========================================
+# ==============================================================================
 echo "Selecting best hits..."
-FINAL_BEST_FILE="${CHR_QUERY}_best_hits_combined.out"
+FINAL_BEST_FILE="${QRY}_best_hits_combined.out"
 
-# Select best hit for Left flank (sorting by identity/score column)
-if [ -f "${CHR_QUERY}_left.out" ]; then
-    sort -k11,11n "${CHR_QUERY}_left.out" | tail -n 1 > "$FINAL_BEST_FILE"
+# Select best hit for left flank (sorting by identity/score column)
+if [ -f "${QRY}_left.out" ]; then
+    sort -k11,11n "${QRY}_left.out" | tail -n 1 > "$FINAL_BEST_FILE"
 fi
 
-# Append best hit for Right flank
-if [ -f "${CHR_QUERY}_right.out" ]; then
-    sort -k11,11n "${CHR_QUERY}_right.out" | tail -n 1 >> "$FINAL_BEST_FILE"
+# Append best hit for right flank
+if [ -f "${QRY}_right.out" ]; then
+    sort -k11,11n "${QRY}_right.out" | tail -n 1 >> "$FINAL_BEST_FILE"
 fi
 
-# ==========================================
+# ==============================================================================
 # 6. TRANSFER RESULTS
-# ==========================================
-echo "Saving results to $FINAL_OUT_DIR"
-cp "$FINAL_BEST_FILE" "$FINAL_OUT_DIR/"
-cp "${CHR_QUERY}_left.out" "$FINAL_OUT_DIR/"
-cp "${CHR_QUERY}_right.out" "$FINAL_OUT_DIR/"
+# ==============================================================================
+echo "Saving results to $OUT/$CHR"
+cp "$FINAL_BEST_FILE" "$OUT/$CHR/" || exit 1
+cp "${QRY}_left.out" "$OUT/$CHR/" || exit 1
+cp "${QRY}_right.out" "$OUT/$CHR/" || exit 1
 
-echo "Process complete. Results saved in: $FINAL_OUT_DIR"
+# Clean up all intermediate scratch files
+rm -f targets_L.fasta targets_R.fasta \
+       "${QRY}_left.out" "${QRY}_right.out" \
+       "$FINAL_BEST_FILE"
+
+echo "Process complete. Results saved in: $OUT/$CHR"

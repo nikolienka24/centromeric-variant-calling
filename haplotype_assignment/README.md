@@ -1,6 +1,6 @@
 # Haplotype Assignment
 
-This section covers haplotype assignment for centromeric regions using sequence-level alignment with MashMap. Two complementary strategies are used: direct alignment of **centromere sequences**, and alignment of **flanking regions** surrounding the centromere.
+This section covers haplotype assignment for centromeric regions using sequence-level alignment with MashMap. Two complementary strategies are used: direct alignment of **centromeric sequences**, and alignment of **flanking regions** surrounding the centromere.
 
 ---
 
@@ -9,7 +9,8 @@ This section covers haplotype assignment for centromeric regions using sequence-
 ```
 haplotype_assignment/
 ├── mashmap.centromeres.sh   # Assign haplotype by aligning centromere FASTA to H1/H2
-└── mashmap.flanks.sh        # Assign haplotype by aligning left/right flanks to H1/H2
+├── mashmap.flanks.sh        # Assign haplotype by aligning left/right flanks to H1/H2
+└── config.example.sh        # Template configuration file — copy to config.sh and fill in your paths
 ```
 
 ---
@@ -18,20 +19,14 @@ haplotype_assignment/
 
 Aligns an extracted centromere query sequence against both haplotypes (H1 and H2) simultaneously using MashMap. The haplotype producing the best-identity alignment is selected as the winner.
 
-**Requirements:** `mashmap
+**Requirements:** `mashmap`
+
+> **Note:** All input paths and sample identifiers are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
 **Usage (PBS/qsub):**
 ```bash
-qsub mashmap.centromeres.sh \
-    -v QRY="query.fasta",H1="hap1.fasta",H2="hap2.fasta",OUT="/path/to/output"
+qsub mashmap.centromeres.sh
 ```
-
-| Variable | Description |
-|----------|-------------|
-| `QRY` | Extracted centromere FASTA for the query sample |
-| `H1` | Centromere FASTA for Haplotype 1 of the reference panel |
-| `H2` | Centromere FASTA for Haplotype 2 of the reference panel |
-| `OUT` | Output directory |
 
 **Method:**
 - H1 and H2 FASTAs are merged into a single target file with `HAP1_` / `HAP2_` header prefixes
@@ -48,20 +43,12 @@ Assigns a haplotype by aligning the **left and right flanking sequences** of the
 
 **Requirements:** `mashmap`
 
+> **Note:** All input paths and sample identifiers are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
+
 **Usage (PBS/qsub):**
 ```bash
-qsub mashmap.flanks.sh \
-    -v CHR="chrX",QRY="PAN027.paternal",H1="PAN028.h1",H2="PAN028.h2",IN="/path/flanks",OUT="/path/results"
+qsub mashmap.flanks.sh
 ```
-
-| Variable | Description |
-|----------|-------------|
-| `CHR` | Chromosome name (e.g., `chrX`) — used to name the output subdirectory |
-| `QRY` | Filename prefix for the query flank files |
-| `H1` | Filename prefix for Haplotype 1 flank files |
-| `H2` | Filename prefix for Haplotype 2 flank files |
-| `IN` | Input directory containing all `*_left_flank.fasta` / `*_right_flank.fasta` files |
-| `OUT` | Base output directory (`<OUT>/<CHR>/` will be created) |
 
 **Expected input filenames** (inside `IN` directory):
 ```
@@ -84,7 +71,3 @@ qsub mashmap.flanks.sh \
 | `<QRY>_best_hits_combined.out` | Best MashMap hit for left and right flank combined |
 | `<QRY>_left.out` | Full MashMap output for the left flank |
 | `<QRY>_right.out` | Full MashMap output for the right flank |
-
----
-
-> **Note:** Edit the `ENVIRONMENT SETUP` section in each script to match your cluster's conda paths before submitting.
