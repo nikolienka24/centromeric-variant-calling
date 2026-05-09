@@ -20,24 +20,20 @@ if [ -z "$IN" ] || [ -z "$OUT" ]; then
     exit 1
 fi
 
-INPUT_FASTQ=$IN
-OUT_DIR=$OUT
-
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT"
 
 # ==========================================
-# 2. ENVIRONMENT SETUP (USER DEFINED)
+# 2. ENVIRONMENT SETUP
 # ==========================================
-# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
 CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
 ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
-source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$ENV_PATH"
 
-# Validation: Check if NanoPlot is accessible
+# shellcheck source=/dev/null
+source "$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate "$ENV_PATH" || { echo "ERROR: Failed to activate conda environment: $ENV_PATH"; exit 1; }
+
 if ! command -v NanoPlot &> /dev/null; then
     echo "Error: NanoPlot not found in PATH."
-    echo "Please edit the ENVIRONMENT SETUP section in this script."
     exit 1
 fi
 
@@ -46,14 +42,12 @@ fi
 # ==========================================
 echo "---------------------------------------------------"
 echo "Starting NanoPlot QC Analysis"
-echo "Input FASTQ: $INPUT_FASTQ"
-echo "Output Dir:  $OUT_DIR"
+echo "Input FASTQ: $IN"
+echo "Output Dir:  $OUT"
 echo "---------------------------------------------------"
 
-# NanoPlot generates high-quality plots for long-read sequencing (Nanopore/PacBio)
-# providing metrics like read length N50, quality scores, and yield.
-NanoPlot --fastq "$INPUT_FASTQ" -o "$OUT_DIR"
+NanoPlot --fastq "$IN" -o "$OUT"
 
 echo "---------------------------------------------------"
-echo "Analysis complete. Reports generated in $OUT_DIR"
+echo "Analysis complete. Reports generated in $OUT"
 echo "---------------------------------------------------"
