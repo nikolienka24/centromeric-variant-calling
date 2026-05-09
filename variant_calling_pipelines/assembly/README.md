@@ -19,7 +19,7 @@ assembly/
 │   └── intersect_3gen.py              # De novo filter: subtract shared POS across generations
 │
 └── stretcher/
-    ├── align_parse.sh                 # EMBOSS Stretcher alignment + straln parsing + filtering
+    ├── align_call.sh                  # EMBOSS Stretcher alignment + straln parsing + filtering
     └── intersect_3gen.py              # De novo filter: subtract shared start1 positions
 ```
 
@@ -29,23 +29,22 @@ assembly/
 
 ### `align_call.sh`
 
-Aligns two centromeric FASTA sequences using Centrolign and converts the CIGAR output to a variant TSV. Applies a three-stage BEDtools filtering pipeline to remove variants in problematic and gap regions.
+Aligns two centromeric FASTA sequences using Centrolign and converts the CIGAR output to a variant TSV. Applies a multiple stage BEDtools filtering pipeline to remove variants in problematic and gap regions.
 
-**Requirements:** `centrolign`, `bedtools`, Python 3, 1 CPU, 64 GB RAM
+**Requirements:** `centrolign`, `bedtools`, Python 3
 
-> **Note:** All input paths (FASTAs, BED files, tool binaries, helper scripts) are **hardcoded**. Edit the `PATH CONFIGURATION` block at the top of the script before submitting.
+> **Note:** All input paths (FASTAs, BED files, tool binaries, helper scripts) are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
 **Usage (PBS/qsub):**
 ```bash
 qsub align_call.sh
 ```
-*(No `-v` arguments — sample IDs and paths are set directly in the script)*
 
 **Pipeline steps:**
-1. Extracts genomic offsets for both sequences from the centromere BED file (matched by FASTA filename against column 4)
+1. Extracts genomic offsets for both sequences from the centromere BED file (matched by sequence name against column 1)
 2. Concatenates REF and MUT FASTAs and runs Centrolign to produce a CIGAR string
 3. Calls `parse.cigar_to_tsv.only_mut.py` to convert the CIGAR into a variant TSV with absolute genomic coordinates
-4. Applies three sequential BEDtools filters — reference problematic regions → mutation problematic regions → genomic gaps
+4. Applies sequential BEDtools filters — reference problematic regions → mutation problematic regions → genomic gaps
 
 **Outputs** (saved to `OUTPUT_FOLDER`):
 
@@ -138,27 +137,19 @@ Aligns two centromeric assemblies using Minimap2 (`asm5` preset) and calls varia
 
 **Requirements:** `minimap2`, `paftools.js`, `bedtools`, 8 CPUs, 16 GB RAM
 
-> **Note:** Input FASTA paths and BED annotation paths are **hardcoded**. Edit the `ENVIRONMENT SETUP` and `PREPARE INPUTS` sections before submitting.
+> **Note:** All input paths and sample IDs are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
 **Usage (PBS/qsub):**
 ```bash
-qsub align_call.sh \
-    -v CHR_ID="chrX",REF_ID="PAN010",QRY_ID="PAN027",OUT="/path/to/results"
+qsub align_call.sh
 ```
-
-| Variable | Description |
-|----------|-------------|
-| `CHR_ID` | Chromosome identifier for output file naming |
-| `REF_ID` | Reference sequence ID (generation 1) |
-| `QRY_ID` | Query sequence ID (generation 2 / proband) |
-| `OUT` | Output directory |
+*(No `-v` arguments — all paths and sample IDs are set in `config.sh`)*
 
 **Pipeline steps:**
-1. FASTA headers are truncated to the first word to prevent a `paftools.js` TypeError
-2. Genomic offsets for REF and QRY are looked up from `offsets.bed`; defaulting to 0 if not found
-3. Minimap2 aligns with `-cx asm5 --cs` and Paftools calls variants into a raw VCF
-4. An `awk` script corrects VCF `CHROM`, `POS` (+REF offset), and `QSTART` in INFO (+QRY offset)
-5. Double-sided BEDtools filtering: reference-side (CHROM/POS) then query-side (extracted from `QSTART`)
+1. Genomic offsets for REF and QRY are looked up from `offsets.bed` by matching against column 1; defaulting to 0 if not found
+2. Minimap2 aligns with `-cx asm5 --cs` and Paftools calls variants into a raw VCF
+3. An `awk` script corrects VCF `POS` (+REF offset) and `QSTART` in INFO (+QRY offset)
+4. Double-sided BEDtools filtering: reference-side (CHROM/POS) then query-side (extracted from `QSTART`)
 
 **Outputs:**
 
@@ -197,39 +188,31 @@ python intersect_3gen.py \
 
 ## `stretcher/`
 
-### `align_parse.sh`
+### `align_call.sh`
 
 Performs global pairwise alignment using EMBOSS Stretcher, parses the alignment with `straln` to produce a variant BEDPE, and applies BEDtools filtering against problematic and gap regions.
 
-**Requirements:** EMBOSS (`stretcher`, `straln`), `bedtools`, 1 CPU, 4 GB RAM
+**Requirements:** EMBOSS (`stretcher`), `straln`, `bedtools`, 1 CPU, 4 GB RAM
 
-> **Note:** Input FASTA and BED paths are **hardcoded**. Edit the `PREPARE INPUTS` section before submitting. Gap open/extend penalties are set to 16/4.
+> **Note:** All input paths and sample IDs are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
 **Usage (PBS/qsub):**
 ```bash
-qsub align_parse.sh \
-    -v CHR_ID="PAN027.chr3.maternal",S1="PAN027.chr3.maternal",S2="PAN010.chr3.haplotype2",OUT="/path/to/results"
+qsub align_call.sh
 ```
 
-| Variable | Description |
-|----------|-------------|
-| `CHR_ID` | Unique output file identifier |
-| `S1` | Exact sequence name for sequence 1 (must match BED and FASTA filenames) |
-| `S2` | Exact sequence name for sequence 2 |
-| `OUT` | Output directory |
-
 **Pipeline steps:**
-1. Genomic offsets for S1 and S2 are extracted from `offsets.bed`
-2. Stretcher performs global alignment (`markx0` format, gap open 16, extend 4)
-3. `straln` parses the `.aln` file into a variant TSV using sequence names and offsets
-4. BEDtools filters variants against combined problematic and gap BED files for both sequences
+1. Genomic offsets for S1 and S2 are extracted from `offsets.bed` by matching against column 1; defaulting to 0 if not found
+2. Input FASTAs are copied to scratch and Stretcher performs global alignment (`markx0` format, gap open 16, extend 4)
+3. `straln` parses the `.aln` file into a variant BEDPE using sequence names and offsets
+4. Double-sided BEDtools filtering: stage 1 filters on sequence 1 coordinates (columns 1-3), stage 2 filters on sequence 2 coordinates (columns 4-6)
 
 **Outputs:**
 
 | File | Description |
 |------|-------------|
 | `<CHR_ID>.aln` | Raw Stretcher alignment file |
-| `straln_raw_all/` | Directory with all raw `straln` TSV outputs |
+| `straln_raw_all/` | Directory with all raw `straln` BEDPE outputs |
 | `<CHR_ID>.filtered.tsv` | Final filtered variant TSV |
 
 ---
@@ -264,6 +247,6 @@ python intersect_3gen.py \
 |---|---|---|---|
 | **Alignment type** | Centromere-aware whole-sequence | Assembly-to-reference (asm5) | Global pairwise (Needleman-Wunsch) |
 | **Output format** | CIGAR → TSV | VCF | BEDPE via `straln` |
-| **Offset handling** | Per-sequence BED lookup | Per-sequence BED lookup + awk VCF correction | Per-sequence BED lookup |
+| **Offset handling** | Per-sequence BED lookup (column 1) | Per-sequence BED lookup (column 1) + awk VCF correction | Per-sequence BED lookup (column 1) |
 | **Coordinate key** | `Ref_Start` | `POS` | `start1` |
 | **De novo filter** | `intersect_3gen.py` | `intersect_3gen.py` | `intersect_3gen.py` |
