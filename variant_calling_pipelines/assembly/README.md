@@ -135,7 +135,7 @@ python intersect_3gen.py \
 
 Aligns two centromeric assemblies using Minimap2 (`asm5` preset) and calls variants with Paftools. Applies coordinate offset correction to both the VCF `POS` field and the `QSTART` INFO tag, then filters on both reference- and query-side problematic/gap regions.
 
-**Requirements:** `minimap2`, `paftools.js`, `bedtools`, 8 CPUs, 16 GB RAM
+**Requirements:** `minimap2`, `paftools.js`, `bedtools`
 
 > **Note:** All input paths and sample IDs are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
@@ -192,7 +192,7 @@ python intersect_3gen.py \
 
 Performs global pairwise alignment using EMBOSS Stretcher, parses the alignment with `straln` to produce a variant BEDPE, and applies BEDtools filtering against problematic and gap regions.
 
-**Requirements:** EMBOSS (`stretcher`), `straln`, `bedtools`, 1 CPU, 4 GB RAM
+**Requirements:** EMBOSS (`stretcher`), `straln`, `bedtools`
 
 > **Note:** All input paths and sample IDs are configured via `config.sh`. Copy `config.example.sh` to `config.sh` and fill in your paths before submitting.
 
