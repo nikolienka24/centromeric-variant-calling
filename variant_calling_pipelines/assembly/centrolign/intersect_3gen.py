@@ -13,45 +13,51 @@ import argparse
 import os
 import sys
 
-def main():
-    # --- 1. ARGUMENT PARSING ---
-    parser = argparse.ArgumentParser(description='Compare mutation positions between two generations.')
-    parser.add_argument('-g1', '--input_gp', required=True, help='Path to Generation 1 (GP) TSV results')
-    parser.add_argument('-g2', '--input_gd', required=True, help='Path to Generation 2 (GD) TSV results')
-    parser.add_argument('-o', '--output', required=True, help='Path for the filtered output TSV')
-    args = parser.parse_args()
 
-    # --- 2. DATA LOADING ---
+def parse_args():
+    """Parses and returns command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Compare mutation positions between two generations.')
+    parser.add_argument('-g1', '--input_gp', required=True,
+                        help='Path to Generation 1 (GP) TSV results')
+    parser.add_argument('-g2', '--input_gd', required=True,
+                        help='Path to Generation 2 (GD) TSV results')
+    parser.add_argument('-o', '--output', required=True,
+                        help='Path for the filtered output TSV')
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    # Load input files
     try:
-        print(f"Loading files...")
+        print("Loading files...")
         gp = pd.read_csv(args.input_gp, sep='\t')
         gd = pd.read_csv(args.input_gd, sep='\t')
     except Exception as e:
-        print(f"RUNTIME ERROR: Failed to read input files: {e}")
+        print(f"ERROR: Failed to read input files: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Validate presence of coordinate column
     if 'Ref_Start' not in gp.columns or 'Ref_Start' not in gd.columns:
-        print("ERROR: Column 'Ref_Start' not found. Ensure the inputs are Centrolign result TSVs.")
+        print("ERROR: Column 'Ref_Start' not found. Ensure the inputs are Centrolign result TSVs.",
+              file=sys.stderr)
         sys.exit(1)
 
-    # --- 3. FILTERING LOGIC ---
-    # Create a set of positions from the daughter/granddaughter (GD) for exclusion
+    # Keep rows from GP only if Ref_Start is NOT present in GD
     gd_starts = set(gd['Ref_Start'])
-
-    # Keep rows from the parent (GP) only if Ref_Start is NOT in the exclusion set
     result = gp[~gp['Ref_Start'].isin(gd_starts)]
 
-    # --- 4. SAVING RESULTS ---
+    # Save results
     output_dir = os.path.dirname(args.output)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     result.to_csv(args.output, sep='\t', index=False)
 
-    # --- 5. TERMINAL SUMMARY ---
     print("-" * 50)
-    print(f"Mutation Comparison Complete")
+    print("Mutation Comparison Complete")
     print(f"GP Source:          {os.path.basename(args.input_gp)}")
     print(f"GD Source:          {os.path.basename(args.input_gd)}")
     print("-" * 50)
@@ -60,6 +66,7 @@ def main():
     print(f"Unique mutations (De Novo):  {len(result)}")
     print("-" * 50)
     print(f"Result saved to: {args.output}")
+
 
 if __name__ == "__main__":
     main()

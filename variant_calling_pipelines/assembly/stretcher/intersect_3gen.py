@@ -13,51 +13,55 @@ import argparse
 import os
 import sys
 
+
+def parse_args():
+    """Parses and returns command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Filter unique mutations between generations.')
+    parser.add_argument('-gp', '--input_gp', required=True,
+                        help='Path to Generation 1 BEDPE file')
+    parser.add_argument('-gd', '--input_gd', required=True,
+                        help='Path to Generation 2 BEDPE file')
+    parser.add_argument('-o', '--output_dir', required=True,
+                        help='Directory to save the final_de_novo.tsv')
+    return parser.parse_args()
+
+
 def main():
-    # --- 1. ARGUMENT PARSING ---
-    parser = argparse.ArgumentParser(description='Filter unique mutations between generations.')
-    parser.add_argument('-gp', '--input_gp', required=True, help='Path to Generation 1 BEDPE file')
-    parser.add_argument('-gd', '--input_gd', required=True, help='Path to Generation 2 BEDPE file')
-    parser.add_argument('-o', '--output_dir', required=True, help='Directory to save the final_de_novo.tsv')
-    args = parser.parse_args()
+    args = parse_args()
 
-    # Ensure output directory exists
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    os.makedirs(args.output_dir, exist_ok=True)
 
+    # Load input files
     try:
-        # --- 2. DATA LOADING ---
-        print(f"Loading files...")
+        print("Loading files...")
         gp = pd.read_csv(args.input_gp, sep='\t')
         gd = pd.read_csv(args.input_gd, sep='\t')
-
-        # Check if required column exists
-        if 'start1' not in gp.columns or 'start1' not in gd.columns:
-            print("ERROR: Column 'start1' not found in one of the input files.")
-            sys.exit(1)
-
-        # --- 3. FILTERING LOGIC ---
-        # Create a set of unique positions from the granddaughter (GD)
-        gd_positions = set(gd['start1'])
-
-        # Keep rows where start1 in GP is NOT present in GD positions
-        result = gp[~gp['start1'].isin(gd_positions)]
-
-        # --- 4. SAVING RESULTS ---
-        output_file = os.path.join(args.output_dir, 'final_de_novo.tsv')
-        result.to_csv(output_file, sep='\t', index=False)
-
-        # --- 5. TERMINAL SUMMARY ---
-        print("-" * 40)
-        print(f"Processing Complete")
-        print(f"Generation 1 total:   {len(gp)}")
-        print(f"Unique mutations:     {len(result)}")
-        print(f"Result saved to:      {output_file}")
-        print("-" * 40)
-
     except Exception as e:
-        print(f"RUNTIME ERROR: {e}")
+        print(f"ERROR: Failed to read input files: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Validate presence of coordinate column
+    if 'start1' not in gp.columns or 'start1' not in gd.columns:
+        print("ERROR: Column 'start1' not found. Ensure the inputs are Stretcher BEDPE files.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Keep rows from GP whose start1 is NOT present in GD
+    gd_positions = set(gd['start1'])
+    result = gp[~gp['start1'].isin(gd_positions)]
+
+    # Save results
+    output_file = os.path.join(args.output_dir, 'final_de_novo.tsv')
+    result.to_csv(output_file, sep='\t', index=False)
+
+    print("-" * 40)
+    print("Processing Complete")
+    print(f"Generation 1 total:   {len(gp)}")
+    print(f"Unique mutations:     {len(result)}")
+    print(f"Result saved to:      {output_file}")
+    print("-" * 40)
+
 
 if __name__ == "__main__":
     main()
