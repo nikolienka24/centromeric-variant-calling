@@ -70,11 +70,11 @@ python variant_distribution_per_chr.py \
 ---
 
 ### `venn_diagrams.tool_cross_validation.py`
- 
+
 Analyzes concordance across three variant callers (Stretcher, Minimap2, Centrolign) and visualizes the overlap in a 3-way Venn diagram. Each intersection region is annotated with both the regular variant count and the homopolymer variant count (`+N` format). Chr22 paternal/haplotype2 data is excluded automatically.
- 
+
 **Requirements:** `pandas`, `matplotlib`, `matplotlib_venn`
- 
+
 **Usage:**
 ```bash
 python venn_diagrams.tool_cross_validation.py \
@@ -82,14 +82,15 @@ python venn_diagrams.tool_cross_validation.py \
     -m master.2gen.tsv \
     -o /path/to/output/venn_concordance.png
 ```
- 
+
 | Argument | Description |
 |----------|-------------|
 | `-i` / `--intersect` | Intersection TSV file (variants called by ≥2 tools) |
 | `-m` / `--master` | Master variant TSV file with per-tool calls and positions |
 | `-o` / `--output` | Output PNG path |
- 
+
 **Output:** Venn diagram saved as PNG (`300 dpi`)
+
 ---
 
 ## `qc/` — Read Quality Control
@@ -99,6 +100,8 @@ python venn_diagrams.tool_cross_validation.py \
 Runs NanoPlot on a simulated or real FASTQ file to generate a full QC report including read length distribution, N50, and quality score plots.
 
 **Requirements:** `NanoPlot`, 2 CPUs
+
+> **Note:** Update `CONDA_BASE` and `ENV_PATH` in the `ENVIRONMENT SETUP` section of this script to match your cluster's conda configuration before submitting.
 
 **Usage (PBS/qsub):**
 ```bash
@@ -187,4 +190,3 @@ python separate_stats.py \
 ## Notes
 
 - All bar charts and scatter plots use the `magma` colormap for visual consistency across the pipeline.
-- Edit the `ENVIRONMENT SETUP` section of `nanoplot_qc.sh` to match your cluster's conda configuration before submitting.

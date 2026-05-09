@@ -25,8 +25,9 @@ mkdir -p "$OUT"
 # ==========================================
 # 2. ENVIRONMENT SETUP
 # ==========================================
-CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
-ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+# >>> UPDATE THESE PATHS TO MATCH YOUR CLUSTER SETUP <<<
+CONDA_BASE="/path/to/your/conda/base"
+ENV_PATH="/path/to/your/conda/env"
 
 # shellcheck source=/dev/null
 source "$CONDA_BASE/etc/profile.d/conda.sh"
