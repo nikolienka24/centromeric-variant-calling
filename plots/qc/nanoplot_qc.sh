@@ -8,7 +8,7 @@
 # 1. INPUT ARGUMENTS & USAGE EXAMPLE
 # ==========================================
 # Example Run Command:
-# qsub script.sh -v IN="data.fastq",OUT="/path/to/results"
+# qsub nanoplot_qc.sh -v IN="data.fastq",OUT="/path/to/results"
 #
 # Arguments provided via -v (PBS variables):
 # IN  - Path to the input FASTQ file (Long-read data)

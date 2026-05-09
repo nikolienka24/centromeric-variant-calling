@@ -4,53 +4,63 @@
 #PBS -l walltime=48:00:00
 #PBS -j oe
 
-# ==========================================
-# 1. INPUT ARGUMENTS & USAGE EXAMPLE
-# ==========================================
-# Example Run Command:
-# qsub simulation_script.sh -v REF="genom.fa",MODEL="/path/to/model",OUT="/path/to/out",COV=30
+# ==============================================================================
+# DOCUMENTATION:
+# ==============================================================================
+# Simulates Oxford Nanopore long reads from a reference FASTA using NanoSim,
+# based on a pre-trained error and read-length model.
 #
-# Arguments provided via -v (PBS variables):
-# REF   - Path to the reference FASTA file
-# MODEL - Prefix path to the trained NanoSim model
-# OUT   - Directory where simulated reads will be saved
-# COV   - Desired coverage (e.g., 30, 60)
+# USAGE:
+#    1. Copy config.example.sh to config.sh and fill in your paths.
+#    2. Submit with: qsub simulate_reads.nanosim.sh
+#
+# NOTE: PBS directives are parsed before the shell runs and cannot use
+#       variables, so any PBS-level paths must be set directly in the header.
+# ==============================================================================
 
+# --- LOAD USER CONFIGURATION ---
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG="$SCRIPT_DIR/config.sh"
+if [[ ! -f "$CONFIG" ]]; then
+    echo "ERROR: config.sh not found. Copy config.example.sh to config.sh and fill in your paths."
+    exit 1
+fi
+# shellcheck source=config.sh
+source "$CONFIG"
+
+# ==============================================================================
+# 1. VALIDATE CONFIGURATION
+# ==============================================================================
 if [ -z "$REF" ] || [ -z "$MODEL" ] || [ -z "$OUT" ]; then
-    echo "Error: Missing required variables REF, MODEL, or OUT."
-    echo "Usage: qsub $0 -v REF=\"ref.fa\",MODEL=\"/model/prefix\",OUT=\"/out/dir\",[COV=60]"
+    echo "ERROR: Missing required variables REF, MODEL, or OUT in config.sh."
     exit 1
 fi
 
-# Set default coverage to 60 if not provided
-COVERAGE=${COV:-60}
+# Default coverage to 60 if not set in config
+COV=${COV:-60}
 
-# ==========================================
-# 2. ENVIRONMENT SETUP (USER DEFINED)
-# ==========================================
-# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
-ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+# ==============================================================================
+# 2. ENVIRONMENT SETUP
+# ==============================================================================
+# shellcheck source=/dev/null
 source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$ENV_PATH"
+conda activate "$ENV_PATH" || { echo "ERROR: Failed to activate conda environment: $ENV_PATH"; exit 1; }
 
-# Validation: Check if the NanoSim simulator is accessible
 if ! command -v simulator.py &> /dev/null; then
-    echo "Error: simulator.py (NanoSim) not found in PATH."
-    echo "Please check your ENVIRONMENT SETUP section."
+    echo "ERROR: simulator.py (NanoSim) not found in PATH."
     exit 1
 fi
 
-# ==========================================
+# ==============================================================================
 # 3. SIMULATION EXECUTION
-# ==========================================
+# ==============================================================================
 mkdir -p "$OUT"
 
 echo "---------------------------------------------------"
 echo "Starting NanoSim Simulation"
 echo "Reference: $REF"
 echo "Model:     $MODEL"
-echo "Coverage:  $COVERAGE"
+echo "Coverage:  $COV"
 echo "Output:    $OUT"
 echo "---------------------------------------------------"
 
@@ -67,12 +77,11 @@ simulator.py genome \
     -rg "$REF" \
     -c "$MODEL" \
     -o "$OUT/simulated_reads" \
-    -x "$COVERAGE" \
+    -x "$COV" \
     -t 4 \
     --fastq \
     -hp -k 5
 
 echo "---------------------------------------------------"
-echo "Simulation complete."
-echo "Results located in: $OUT"
+echo "Simulation complete. Results located in: $OUT"
 echo "---------------------------------------------------"

@@ -4,67 +4,73 @@
 #PBS -l walltime=01:00:00
 #PBS -j oe
 
-# ==========================================
-# 1. INPUT ARGUMENTS & USAGE EXAMPLE
-# ==========================================
-# Example Run Command:
-# qsub script.sh -v REF="genome.fasta",BED="regions.bed",OUT="/path/to/output"
+# ==============================================================================
+# DOCUMENTATION:
+# ==============================================================================
+# Extracts centromeric regions from a reference FASTA using a BED file.
+# Produces a single combined FASTA and individual per-region FASTA files.
 #
-# Arguments provided via -v (PBS variables):
-# REF - Path to reference FASTA file
-# BED - Path to BED file with centromere coordinates
-# OUT - Path to the final output directory
+# USAGE:
+#    1. Copy config.example.sh to config.sh and fill in your paths.
+#    2. Submit with: qsub extract_centromeres.sh
+#
+# NOTE: PBS directives are parsed before the shell runs and cannot use
+#       variables, so any PBS-level paths must be set directly in the header.
+# ==============================================================================
 
+# --- LOAD USER CONFIGURATION ---
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG="$SCRIPT_DIR/config.sh"
+if [[ ! -f "$CONFIG" ]]; then
+    echo "ERROR: config.sh not found. Copy config.example.sh to config.sh and fill in your paths."
+    exit 1
+fi
+# shellcheck source=config.sh
+source "$CONFIG"
+
+# ==============================================================================
+# 1. VALIDATE CONFIGURATION
+# ==============================================================================
 if [ -z "$REF" ] || [ -z "$BED" ] || [ -z "$OUT" ]; then
-    echo "Error: Missing required variables REF, BED, or OUT."
-    echo "Usage: qsub $0 -v REF=\"ref.fa\",BED=\"coords.bed\",OUT=\"/output/dir\""
+    echo "ERROR: Missing required variables REF, BED, or OUT in config.sh."
     exit 1
 fi
 
-REFERENCE_FASTA=$REF
-CENTROMERE_BED=$BED
-FINAL_OUT_DIR=$OUT
-INDIVIDUAL_DIR="${FINAL_OUT_DIR}/per_chromosome"
-
-# ==========================================
-# 2. ENVIRONMENT SETUP (USER DEFINED)
-# ==========================================
-# >>> ADD YOUR ENVIRONMENT SETUP HERE <<<
-CONDA_BASE="/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
-ENV_PATH="/storage/praha5-elixir/projects/bioinf-fi/polakova/apps/miniconda3/envs/bioinf"
+# ==============================================================================
+# 2. ENVIRONMENT SETUP
+# ==============================================================================
+# shellcheck source=/dev/null
 source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$ENV_PATH"
+conda activate "$ENV_PATH" || { echo "ERROR: Failed to activate conda environment: $ENV_PATH"; exit 1; }
 
-# Validation: Check if required tools are accessible
 if ! command -v bedtools &> /dev/null || ! command -v samtools &> /dev/null; then
-    echo "Error: bedtools or samtools not found in PATH."
-    echo "Please edit the ENVIRONMENT SETUP section in this script."
+    echo "ERROR: bedtools or samtools not found in PATH."
     exit 1
 fi
 
-# ==========================================
+# ==============================================================================
 # 3. SCRATCH SETUP AND DATA TRANSFER
-# ==========================================
+# ==============================================================================
 echo "Setting up scratch directory..."
 cd "$SCRATCHDIR" || exit 1
 
-cp "$REFERENCE_FASTA" "input_assembly.fasta"
-cp "$CENTROMERE_BED" "centromeres.bed"
+cp "$REF" input_assembly.fasta
+cp "$BED" centromeres.bed
 
-# Index the main reference
-samtools faidx "input_assembly.fasta"
-mkdir -p "individual_tmp"
+samtools faidx input_assembly.fasta
+mkdir -p individual_tmp
 
-# ==========================================
+# ==============================================================================
 # 4. SUBSET EXTRACTION
-# ==========================================
+# ==============================================================================
 echo "Extracting regions from BED file..."
 
 # 4a. Create a single combined FASTA file
-bedtools getfasta -fi "input_assembly.fasta" -bed "centromeres.bed" -fo "reference.centromeres.fasta"
-samtools faidx "reference.centromeres.fasta"
+bedtools getfasta -fi input_assembly.fasta -bed centromeres.bed -fo reference.centromeres.fasta
+samtools faidx reference.centromeres.fasta
 
 # 4b. Create individual FASTA files for each row in the BED file
+# Extra BED columns beyond chrom/start/end are captured in $rest and ignored
 echo "Generating individual files..."
 while read -r chrom start end rest; do
     # Skip empty lines, comments, or track headers
@@ -72,26 +78,29 @@ while read -r chrom start end rest; do
 
     FILENAME="${chrom}_${start}_${end}.fasta"
 
-    # Extract specific region
+    # Extract specific region into a temporary single-region BED
     echo -e "${chrom}\t${start}\t${end}" > temp_region.bed
-    bedtools getfasta -fi "input_assembly.fasta" -bed temp_region.bed -fo "individual_tmp/${FILENAME}"
-
-    # Index the small file
+    bedtools getfasta -fi input_assembly.fasta -bed temp_region.bed -fo "individual_tmp/${FILENAME}"
     samtools faidx "individual_tmp/${FILENAME}"
-done < "centromeres.bed"
 
-# ==========================================
+    # Clean up the temporary single-region BED immediately after use
+    rm -f temp_region.bed
+done < centromeres.bed
+
+# ==============================================================================
 # 5. TRANSFER RESULTS
-# ==========================================
-echo "Saving results to: $FINAL_OUT_DIR"
-mkdir -p "$INDIVIDUAL_DIR"
+# ==============================================================================
+echo "Saving results to: $OUT"
+mkdir -p "$OUT/per_chromosome"
 
-# Copy combined files
-cp "reference.centromeres.fasta" "$FINAL_OUT_DIR/"
-cp "reference.centromeres.fasta.fai" "$FINAL_OUT_DIR/"
+cp reference.centromeres.fasta "$OUT/" || exit 1
+cp reference.centromeres.fasta.fai "$OUT/" || exit 1
+cp individual_tmp/*.fasta "$OUT/per_chromosome/" || exit 1
+cp individual_tmp/*.fai "$OUT/per_chromosome/" || exit 1
 
-# Copy individual files
-cp individual_tmp/*.fasta "$INDIVIDUAL_DIR/"
-cp individual_tmp/*.fai "$INDIVIDUAL_DIR/"
+# Clean up all intermediate scratch files
+rm -f input_assembly.fasta input_assembly.fasta.fai \
+       centromeres.bed reference.centromeres.fasta reference.centromeres.fasta.fai
+rm -rf individual_tmp
 
 echo "Process complete."
