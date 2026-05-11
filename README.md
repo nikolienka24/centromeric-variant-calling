@@ -37,15 +37,6 @@ The repository is organized into subdirectories representing different stages of
 | [Centrolign](https://github.com/jeizenga/centrolign) | v0.2.1 / v1.10.1 | Centromere alignment (pairwise & pangenome) |
 | [MashMap](https://github.com/marbl/MashMap) | v3.1.3 | Approximate sequence mapping |
 
-### Conda Environment
-
-A conda environment file is provided for reproducing the software environment:
-
-```bash
-conda env create -f environment.yml
-conda activate centromere-benchmarking
-```
-
 ---
 
 ## Technical Infrastructure
