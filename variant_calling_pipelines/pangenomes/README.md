@@ -33,8 +33,7 @@ qsub build_graph_call.sh
 Each input FASTA is re-headered to a clean sample label and localized to scratch. All four sequences are concatenated into `all_sequences.fasta`.
 
 **Step 2 — Guide tree**
-`mashtree` builds a Newick-format guide tree from the four sequences. FASTA extensions are stripped from leaf names to match Centrolign's expected format.
-
+A pre-computed Newick-format guide tree is provided via `GUIDE_TREE` in `config.sh` and copied to scratch. This replaces the previous `mashtree`-based approach, giving the user full control over the tree topology.
 **Step 3 — Pangenome graph construction**
 Centrolign uses the guide tree (`-T`) to progressively align all sequences and outputs a pangenome graph in GFA format. Intermediate subproblem files are stored in `subproblems_<CHR>/`.
 
@@ -60,7 +59,7 @@ Centrolign uses the guide tree (`-T`) to progressively align all sequences and o
 
 Compares two named rows in the variant matrix TSV and writes out only the positions where they differ. Called internally by `build_graph_call.sh` but can also be run independently.
 
-**Requirements:** Python 3 (stdlib only)
+**Requirements:** `centrolign`, `make_var_mat`, Python 3
 
 **Usage:**
 ```bash

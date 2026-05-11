@@ -31,22 +31,15 @@ source "$CONFIG"
 # ==============================================================================
 # 1. VALIDATE CONFIGURATION
 # ==============================================================================
-if [ -z "$CHR" ] || [ -z "$REF_ID" ] || [ -z "$S1_ID" ] || [ -z "$S2_ID" ] || [ -z "$S3_ID" ] || [ -z "$OUT" ]; then
-    echo "ERROR: Missing required variables CHR, REF_ID, S1_ID, S2_ID, S3_ID, or OUT in config.sh."
+if [ -z "$CHR" ] || [ -z "$REF_ID" ] || [ -z "$S1_ID" ] || [ -z "$S2_ID" ] || [ -z "$S3_ID" ] || [ -z "$OUT" ] || [ -z "$GUIDE_TREE" ]; then
+    echo "ERROR: Missing required variables CHR, REF_ID, S1_ID, S2_ID, S3_ID, OUT, or GUIDE_TREE in config.sh."
     exit 1
 fi
 
 mkdir -p "$OUT"
 
 # ==============================================================================
-# 2. ENVIRONMENT SETUP
-# ==============================================================================
-# shellcheck source=/dev/null
-source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV" || { echo "ERROR: Failed to activate conda environment: $CONDA_ENV"; exit 1; }
-
-# ==============================================================================
-# 3. PREPARE INPUTS (SCRATCH)
+# 2. PREPARE INPUTS (SCRATCH)
 # ==============================================================================
 echo "Moving to scratch: $SCRATCHDIR"
 cd "$SCRATCHDIR" || exit 1
@@ -63,12 +56,10 @@ sed "s/^>.*/>$S3_ID/" "$FASTA_S3" > "${S3_ID}.fasta"
 cat "${REF_ID}.fasta" "${S1_ID}.fasta" "${S2_ID}.fasta" "${S3_ID}.fasta" > all_sequences.fasta
 
 # ==============================================================================
-# 4. RUN GUIDE TREE & CENTROLIGN
+# 3. RUN CENTROLIGN
 # ==============================================================================
-echo "Building guide tree..."
-mashtree --mindepth 0 --numcpus 1 \
-    "${REF_ID}.fasta" "${S1_ID}.fasta" "${S2_ID}.fasta" "${S3_ID}.fasta" > raw.nwk
-sed 's/\.fasta//g' raw.nwk > guide_tree.nwk
+echo "Copying guide tree..."
+cp "$GUIDE_TREE" guide_tree.nwk || { echo "ERROR: Failed to copy guide tree from $GUIDE_TREE"; exit 1; }
 
 echo "Running Centrolign pangenome construction for $CHR..."
 "$CENTROLIGN_BIN" -T guide_tree.nwk -S "subproblems_${CHR}" all_sequences.fasta > pangenome.gfa
@@ -86,7 +77,7 @@ if [[ ! -s pangenome.gfa ]]; then
 fi
 
 # ==============================================================================
-# 5. GENERATE MATRIX & SAVE RESULTS
+# 4. GENERATE MATRIX & SAVE RESULTS
 # ==============================================================================
 echo "Extracting variant matrix..."
 "$VAR_MAT_BIN" --base --indels --mnvs pangenome.gfa > matrix.tsv
@@ -110,7 +101,7 @@ cp variants_final.2gen.tsv "$OUT/${CHR}_variants_final.2gen.tsv" || exit 1
 
 # Clean up all intermediate scratch files
 rm -f "${REF_ID}.fasta" "${S1_ID}.fasta" "${S2_ID}.fasta" "${S3_ID}.fasta" \
-       all_sequences.fasta raw.nwk guide_tree.nwk \
+       all_sequences.fasta guide_tree.nwk \
        pangenome.gfa matrix.tsv \
        variants_final.1gen.tsv variants_final.2gen.tsv
 rm -rf "subproblems_${CHR}"
