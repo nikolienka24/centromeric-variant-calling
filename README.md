@@ -26,5 +26,27 @@ The repository is organized into subdirectories representing different stages of
 * **`variant_calling_pipelines/pangenomes/`**: Scripts for constructing pangenome graphs with Centrolign and extracting variants from pangenome matrices.
 ---
 
+## Software Dependencies
+
+| Tool | Version | Usage |
+|------|---------|-------|
+| [NanoSim](https://github.com/bcgsc/NanoSim) | v3.2.3 | Nanopore read simulation |
+| [Minimap2](https://github.com/lh3/minimap2) | v2.30-r1287 | Read mapping & assembly alignment |
+| [DeepVariant](https://github.com/google/deepvariant) | v1.10.0 | Deep-learning variant calling |
+| [EMBOSS Stretcher](https://www.ebi.ac.uk/Tools/psa/emboss_stretcher/) | v6.5.7.0 | Pairwise sequence alignment |
+| [Centrolign](https://github.com/jeizenga/centrolign) | v0.2.1 / v1.10.1 | Centromere alignment (pairwise & pangenome) |
+| [MashMap](https://github.com/marbl/MashMap) | v3.1.3 | Approximate sequence mapping |
+
+### Conda Environment
+
+A conda environment file is provided for reproducing the software environment:
+
+```bash
+conda env create -f environment.yml
+conda activate centromere-benchmarking
+```
+
+---
+
 ## Technical Infrastructure
 All scripts are prepared to be executed on the **MetaCentrum** computational grid (CESNET).
