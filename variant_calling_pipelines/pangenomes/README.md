@@ -34,6 +34,7 @@ Each input FASTA is re-headered to a clean sample label and localized to scratch
 
 **Step 2 — Guide tree**
 A pre-computed Newick-format guide tree is provided via `GUIDE_TREE` in `config.sh` and copied to scratch. This replaces the previous `mashtree`-based approach, giving the user full control over the tree topology.
+
 **Step 3 — Pangenome graph construction**
 Centrolign uses the guide tree (`-T`) to progressively align all sequences and outputs a pangenome graph in GFA format. Intermediate subproblem files are stored in `subproblems_<CHR>/`.
 
