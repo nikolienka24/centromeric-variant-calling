@@ -36,6 +36,22 @@ The repository is organized into subdirectories representing different stages of
 | [EMBOSS Stretcher](https://www.ebi.ac.uk/Tools/psa/emboss_stretcher/) | v6.5.7.0 | Pairwise sequence alignment |
 | [Centrolign](https://github.com/jeizenga/centrolign) | v0.2.1 / v1.10.1 | Centromere alignment (pairwise & pangenome) |
 | [MashMap](https://github.com/marbl/MashMap) | v3.1.3 | Approximate sequence mapping |
+| [Sniffles2](https://github.com/fritzsedlazeck/Sniffles) | v2.8.0 | Structural variant calling |
+| [bcftools](https://github.com/samtools/bcftools) | v1.22 (htslib 1.22.1) | VCF filtering and manipulation |
+| [samtools](https://github.com/samtools/samtools) | v1.22.1 (htslib 1.22.1) | BAM processing and indexing |
+| [bedtools](https://github.com/arq5x/bedtools2) | v2.31.1 | Genomic interval operations |
+
+---
+
+## Python Dependencies (Python 3.11)
+
+| Package | Version | Usage |
+|---------|---------|-------|
+| [pysam](https://github.com/pysam-developers/pysam) | v0.23.3 | BAM/VCF file parsing |
+| [pandas](https://pandas.pydata.org/) | v3.0.2 | Data manipulation |
+| [matplotlib](https://matplotlib.org/) | v3.10.8 | Plotting |
+| [seaborn](https://seaborn.pydata.org/) | v0.13.2 | Statistical visualization |
+| [NanoPlot](https://github.com/wdecoster/NanoPlot) | v1.46.2 | Nanopore QC visualization |
 
 ---
 
