@@ -149,7 +149,7 @@ tabix -f -p vcf raw.vcf.gz
 
 # Apply quality filters and restrict to centromeric regions
 bcftools view \
-    -i 'FILTER="PASS" && QUAL>=20 && INFO/SUPPORT>=10' \
+    -i 'FILTER="PASS" && QUAL>=20 && INFO/SUPPORT>=10 && INFO/VAF>=0.8' \
     -R "$BED_REGIONS" \
     raw.vcf.gz -O v -o bcftools_filtered.vcf || { echo "ERROR: bcftools filtering failed."; exit 1; }
 
